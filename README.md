@@ -5,28 +5,36 @@ Working repository for an **agent-level persistent memory** prototype on a multi
 ## Layout
 
 ```
+memory/                       # the drop-in package (complete, self-contained)
+  _digit.py                   #   THE seam file — only file that touches harness symbols;
+                              #   slots marked RECON:Qn, each with a working default
+  models.py store.py recall.py tool.py extraction.py
+scripts/
+  reset_dev_tables.py         # dev-only: drop+recreate ONLY the two memory tables
+  verify_phase_a.py           # gate: prints PHASE_A: PASS|FAIL
+  verify_phase_b.py           # gate: prints PHASE_B: PASS|PARTIAL|FAIL
+  seed_demo.py                # demo fallback row
 docs/
-  DESIGN_DRAFT.md            # architecture direction for team review (finalized after recon)
-  research/REFERENCE_NOTES.md# source-level notes on Hermes Agent, OpenClaw, Letta, mem0
-  recon/ROUND_1.md           # ← question brief for the on-pod recon agent (run this next)
+  recon/ROUND_1.md            # ① run this with the recon agent first
+  IMPLEMENTATION_BRIEF.md     # ② then hand this + the answers to the implementation agent
+  DEMO_RUNBOOK.md             # ③ then rehearse this
+  DESIGN_DRAFT.md             # design doc for team review
+  research/REFERENCE_NOTES.md # source-level notes: Hermes Agent, OpenClaw, Letta, mem0
 ```
 
-Coming after recon round 1: `memory/` (the drop-in package with a single `_digit.py` seam file), `scripts/` (verify / reset / seed), `docs/IMPLEMENTATION_BRIEF.md` (the complete build+test plan for the implementation agent), `docs/DEMO_RUNBOOK.md`.
+## The loop
 
-## How to run the recon round (on the pod)
-
-1. `git pull` this repo onto the pod.
-2. Point the recon agent (Copilot CLI) at `docs/recon/ROUND_1.md`, e.g.:
-   *"Read docs/recon/ROUND_1.md and answer all questions against this repository, following the ANSWER FORMAT rules exactly, including the final GO/NO-GO table."*
-3. Screenshot its full answer (the format rules make it OCR-safe) and bring it back off-pod.
+1. **Recon (unlimited agent):** *"Read docs/recon/ROUND_1.md and answer all questions against this repository, following the ANSWER FORMAT rules exactly, including the final GO/NO-GO table."* Screenshot the answer.
+2. **Wire & build (implementation agent):** give it the recon answer sheet + *"Read docs/IMPLEMENTATION_BRIEF.md and execute it task by task. The memory package in this repo is already written — your job is the ~6 wiring seams, the gates, and the final report in the specified format."*
+3. **Demo:** follow `docs/DEMO_RUNBOOK.md`.
 
 ## Status
 
 - [x] Reference research (4 systems, source-level)
 - [x] Design draft
 - [x] Recon round 1 brief
-- [ ] Recon answers → finalize design
-- [ ] Scaffolding + implementation brief
-- [ ] Phase A build (models · store · tool · injection) → verify gate
-- [ ] Phase B build (post-turn extraction) → verify gate
-- [ ] Demo runbook + rehearsal
+- [x] Package + scripts + implementation brief + runbook authored
+- [ ] Recon answers → fill `RECON:Qn` slots (find them: `grep -rn "RECON:" memory/_digit.py`)
+- [ ] Phase A build → `PHASE_A: PASS`
+- [ ] Phase B build → `PHASE_B: PASS`
+- [ ] Rehearsal + demo
