@@ -36,5 +36,7 @@ docs/
 - [x] Implementation plan approved (joint session): 3 sdk_runner insertions + custom-tool wiring + profile yaml
 - [x] HOW_IT_WORKS.md explainer
 - [x] Recon round 3 answered → tool wiring pinned (custom tool at app.py registration + profile `function_tools` entry); brief finalized
-- [ ] Opus build: Phase A → gate → Phase B → reports
+- [x] Phase A wiring on pod: all edits applied, gate PASS 7/7 post-edit, seam proven (injected_appended=True, byte_identical_when_none=True), tool plan scoping verified
+- [ ] Live acceptance — blocked by dev-env Azure OpenAI credentials/API-mode (Responses API 401s; predates this work) → platform-team question
+- [ ] Phase B wiring + verify → reports
 - [ ] Rehearsal (DEMO_RUNBOOK) + demo

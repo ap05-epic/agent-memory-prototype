@@ -4,6 +4,7 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
 
 ## Pre-demo checklist (day before, and 30 min before)
 
+- [ ] **The backend can run a plain turn at all** (any agent, no memory involved) — if turns fail at the model boundary (Azure 401/deployment mismatch), fix the environment first; nothing memory-related can demo without it.
 - [ ] `python3 scripts/verify_phase_a.py` prints `PHASE_A: PASS` on the pod.
 - [ ] Demo profiles staged (the run script reads repo `profiles/`, which is empty by default — the fixtures live elsewhere):
   `cp -r tests/fixtures/profiles/test-full profiles/` (Agent A) and `cp -r tests/fixtures/profiles/test-minimal profiles/` (Agent B, flag-off).
