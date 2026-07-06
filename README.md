@@ -35,6 +35,6 @@ docs/
 - [x] Recon rounds 1 + 2 answered — `_digit.py` wired, 22 adversarial findings folded in
 - [x] Implementation plan approved (joint session): 3 sdk_runner insertions + custom-tool wiring + profile yaml
 - [x] HOW_IT_WORKS.md explainer
-- [ ] Recon round 3 (`docs/recon/ROUND_3.md`) → pins tool wiring → brief slot-fill
+- [x] Recon round 3 answered → tool wiring pinned (custom tool at app.py registration + profile `function_tools` entry); brief finalized
 - [ ] Opus build: Phase A → gate → Phase B → reports
 - [ ] Rehearsal (DEMO_RUNBOOK) + demo

@@ -58,16 +58,26 @@ File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, inside `if agent 
 ```
 (Lazy import is deliberate: flag-off agents never import the memory package. `stream_turn` is async — the `await` is legal here.)
 
-## Task 4 — Wire the `save_memory` tool ⟨ROUND-3 SLOT — coordinator fills the exact site before you run⟩
+## Task 4 — Wire the `save_memory` tool (pinned by recon round 3)
 
-**Primary variant (custom tool):** at the site where `ToolRegistry` is constructed at app wiring ⟨ROUND-3: module + anchor⟩, build the tool with the registry's own `function_tool` ⟨ROUND-3: exact import⟩ and register it:
+**Primary path — register a pre-built custom tool at app wiring.** File: `agent_factory/api/app.py`. Anchor — the existing construction call:
 ```python
+tool_registry = ToolRegistry(
+    artifact_service=artifact_service,
+    ...
+)
+```
+- [ ] Immediately after that construction closes, insert:
+```python
+from agents import function_tool
+from agents.tool_context import ToolContext
 from agent_factory.memory.tool import TOOL_NAME, TOOL_DESCRIPTION, save_memory_impl
 
-async def _save_memory(ctx, content: str, category: str = "note") -> str:
+async def _save_memory(ctx: ToolContext, content: str, category: str = "note") -> str:
+    """Save a durable fact about this user to persistent memory."""
     return await save_memory_impl(ctx, content, category)
 
-registry.register_custom_tool(
+tool_registry.register_custom_tool(
     TOOL_NAME,
     function_tool(
         _save_memory,
@@ -76,14 +86,24 @@ registry.register_custom_tool(
     ),
 )
 ```
-Then add `save_memory` to the demo profile's `tools:` list (Task 5) so `plan.resolved` carries it ⟨ROUND-3: confirmed semantics⟩. Do **not** pass `needs_approval` (recon Q7: approval only applies when explicitly passed).
+Notes: imports may move to the module top if that matches `app.py` style. `function_tool` is the OpenAI Agents SDK's own (recon-confirmed — not a wrapper); do **not** pass `needs_approval` (defaults to False; approval only applies when explicitly passed). The `ctx: ToolContext` annotation is load-bearing — it's what tells the SDK this is the context parameter, not a tool argument.
 
-**Fallback variant (native builder)** — only if the coordinator marks the primary NO-GO: in `agent_factory/tools/registry.py`, mirror `_build_workspace_sdk_tools` exactly: add `_MEMORY_TOOLS` to the class constants and to the `known_tools` union in `build_sdk_tools`; add a `_build_memory_sdk_tools(self, function_tool, tool_context_cls, profile, plan)` method gated on `"save_memory" in plan.resolved` that returns `[function_tool(_save_memory, name_override=..., description_override=...)]`; aggregate it in `build_sdk_tools` next to the workspace block via `tool_namespace(name="memory", description="Persistent user-memory tools.", tools=memory_tools)`.
+Why this works (recon-verified chain): `plan_tools` resolves any profile-listed name found in `self._custom_tools` → `build_sdk_tools` fetches it via `_resolve_custom_tool` → appends it raw (custom tools bypass `tool_namespace`). Recon round 3's `TOOL_PATH: BUILDER-NEEDED` verdict only observed that no `register_custom_tool` call exists *today* — the insertion above **is** that call; every link of the resolution chain is confirmed in quoted code.
+
+**Fallback variant (native builder)** — only if the registration above misbehaves in practice: in `agent_factory/tools/registry.py`, mirror `_build_workspace_sdk_tools` exactly: add `_MEMORY_TOOLS = frozenset({"save_memory"})` to the class constants and to the `known_tools` union in `build_sdk_tools`; add a `_build_memory_sdk_tools(self, function_tool, tool_context_cls, profile, plan)` method gated on `"save_memory" in plan.resolved` returning `[function_tool(_save_memory, name_override=TOOL_NAME, description_override=TOOL_DESCRIPTION)]`; aggregate it in `build_sdk_tools` next to the workspace block via `tool_namespace(name="memory", description="Persistent user-memory tools.", tools=memory_tools)`.
 
 ## Task 5 — Demo profiles
 
 - [ ] `cp -r tests/fixtures/profiles/test-full profiles/` and `cp -r tests/fixtures/profiles/test-minimal profiles/` (the run script's `AGENT_FACTORY_PROFILE_PATHS` defaults to repo `profiles/`).
-- [ ] In `profiles/test-full/agent.profile.yaml`: set `memory.semantic_memory_enabled: true` (the section exists; currently `false`) and add `save_memory` to its `tools:` list ⟨ROUND-3: exact list shape⟩. Leave `test-minimal` untouched (flag-off agent).
+- [ ] In `profiles/test-full/agent.profile.yaml`: set `memory.semantic_memory_enabled: true` (the section exists; currently `false`) and add `save_memory` under `tools: → function_tools:` (recon-confirmed yaml shape — a plain name list):
+```yaml
+tools:
+  function_tools:
+    - workspace.evaluate
+    - workspace.apply_ops
+    - save_memory
+```
+Leave `test-minimal` untouched (flag-off agent).
 - [ ] Restart the backend process: `scripts/run-local-with-profiles.sh`.
 
 ## Task 6 — Phase A acceptance (GATE — report before Phase B)
