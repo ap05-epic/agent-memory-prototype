@@ -7,7 +7,8 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
 - [ ] `python3 scripts/verify_phase_a.py` prints `PHASE_A: PASS` on the pod.
 - [ ] Demo profiles staged (the run script reads repo `profiles/`, which is empty by default — the fixtures live elsewhere):
   `cp -r tests/fixtures/profiles/test-full profiles/` (Agent A) and `cp -r tests/fixtures/profiles/test-minimal profiles/` (Agent B, flag-off).
-- [ ] Agent A: `memory.semantic_memory_enabled: true` + `save_memory` in its tools list, in `profiles/test-full/agent.profile.yaml`. Agent B: untouched. **Restart the backend process** after editing (`scripts/run-local-with-profiles.sh`).
+- [ ] Agent A: `memory.semantic_memory_enabled: true` + `save_memory` under `tools: function_tools:`, in `profiles/test-full/agent.profile.yaml`. Agent B: untouched.
+- [ ] **Launch with the profile-path override** (the script's default points at other profile dirs): `export AGENT_FACTORY_PROFILE_PATHS=<repo>/profiles` then `scripts/run-local-with-profiles.sh`. Restart the same way after any yaml edit.
 - [ ] Console identity is `console-user` (from the x-user-email header fallback) — that's `<u1>` below. Confirm once in rehearsal by reading `user_id` off the beat-2 DB row.
 - [ ] DB query ready in a terminal tab:
   `SELECT content, category, source, thread_id, user_id, created_at FROM agent_memory_entries WHERE user_id='<u1>' ORDER BY created_at DESC LIMIT 5;`

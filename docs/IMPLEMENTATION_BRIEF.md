@@ -32,18 +32,24 @@ return {
     "memory_enabled": bool(profile.memory.semantic_memory_enabled),
 ```
 
-## Task 3 — Edit 2: recall injection
+## Task 3 — Edit 2: recall injection (CORRECTED — harness refactored after recon round 2)
 
-File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, inside `if agent is None and callable(load_instructions):`. The block currently ends:
+The original anchor (`sdk_instructions` local + `_with_response_preview_context` in `stream_turn`) no longer exists: instruction-building moved into `sdk_adapter.build_agent`, which resolves internally via `resolved_instructions = instructions or self.load_instructions(profile, ...)`. The memory block therefore rides through `build_agent` as an **optional kwarg** — the same optional-override pattern `instructions` itself uses. When the kwarg is None (all existing callers), behavior is byte-identical.
+
+**(a)** File: `agent_factory/runtime/sdk_adapter.py`, method `build_agent`:
+- [ ] Add a keyword-only parameter `memory_block: str | None = None` to the signature.
+- [ ] Anchor: `resolved_instructions = instructions or self.load_instructions(`. After the **last** line that transforms or reassigns `resolved_instructions` (wrappers included, if any moved here), immediately before its final use constructing the agent, insert:
 ```python
-    sdk_instructions = _with_response_preview_context(
-        sdk_instructions,
-        profile,
-    )
+        if memory_block and resolved_instructions:
+            resolved_instructions = f"{resolved_instructions}\n\n{memory_block}"
 ```
-- [ ] Immediately after that assignment (still inside the `if agent is None ...` block, before `sdk_agent = agent or self._sdk_adapter.build_agent(`), insert:
+Do not modify the existing resolution logic in any other way.
+
+**(b)** File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, immediately before the `self._sdk_adapter.build_agent(profile,` call:
+- [ ] Insert:
 ```python
-    if sdk_instructions and profile.memory.semantic_memory_enabled:
+    _memory_block = None
+    if profile.memory.semantic_memory_enabled:
         _user = getattr(effective_request, "user", None)
         if _user is not None:
             from agent_factory.memory.recall import build_memory_block
@@ -53,10 +59,9 @@ File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, inside `if agent 
                 _user.user_id,
                 getattr(_user, "tenant_id", None) or "default",
             )
-            if _memory_block:
-                sdk_instructions = f"{sdk_instructions}\n\n{_memory_block}"
 ```
-(Lazy import is deliberate: flag-off agents never import the memory package. `stream_turn` is async — the `await` is legal here.)
+- [ ] and pass `memory_block=_memory_block` in the `build_agent(...)` call.
+(Lazy import is deliberate: flag-off agents never import the memory package. `stream_turn` is async — the `await` is legal there; `build_agent` stays sync and DB-free.)
 
 ## Task 4 — Wire the `save_memory` tool (pinned by recon round 3)
 
@@ -94,7 +99,8 @@ Why this works (recon-verified chain): `plan_tools` resolves any profile-listed 
 
 ## Task 5 — Demo profiles
 
-- [ ] `cp -r tests/fixtures/profiles/test-full profiles/` and `cp -r tests/fixtures/profiles/test-minimal profiles/` (the run script's `AGENT_FACTORY_PROFILE_PATHS` defaults to repo `profiles/`).
+- [ ] `cp -r tests/fixtures/profiles/test-full profiles/` and `cp -r tests/fixtures/profiles/test-minimal profiles/`.
+- [ ] **Profile-path correction:** the run script's `AGENT_FACTORY_PROFILE_PATHS` default points at the digit-triage/digit-studio profile dirs, NOT repo `profiles/`. Do not copy fixtures into the team's profile dirs — instead **export `AGENT_FACTORY_PROFILE_PATHS` to the repo `profiles/` path before launching** (the script default is only a fallback), and confirm both profiles load at startup.
 - [ ] In `profiles/test-full/agent.profile.yaml`: set `memory.semantic_memory_enabled: true` (the section exists; currently `false`) and add `save_memory` under `tools: → function_tools:` (recon-confirmed yaml shape — a plain name list):
 ```yaml
 tools:
@@ -123,6 +129,8 @@ Expect `tool.started`/`tool.completed` for `save_memory` in the SSE stream; then
 - [ ] **Report in the format below. Stop. Do not start Task 7 until told to proceed.**
 
 ## Task 7 — Edit 3: post-turn extraction (Phase B)
+
+**Anchor pre-check (do this read-only during Phase A and include PRESENT/MISSING in the Phase A report):** confirm the `if output_event.event == EventName.RESPONSE_COMPLETED:` block (with `result.cancel()`, the audit yield, and the RUN_COMPLETED yield) still exists in `stream_turn` after the instruction-building refactor. If missing, stop and report — do not improvise.
 
 File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, inside `if output_event.event == EventName.RESPONSE_COMPLETED:`. The block currently reads (abridged):
 ```python
