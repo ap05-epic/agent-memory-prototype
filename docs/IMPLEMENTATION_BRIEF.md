@@ -1,115 +1,148 @@
-# Implementation Brief — Agent Memory Prototype (recon-wired, final)
+# Implementation Brief — Agent Memory Prototype (final, recon rounds 1+2 wired)
 
-**You are the implementation agent on the pod, with the harness repository open.** The memory feature is **already written and pre-wired against recon round 1** in this transfer repo. Your job: place one package, make **five small anchored edits** to harness files, run the gates, report. Do not redesign, do not refactor, keep diffs minimal.
+**You are the implementation agent on the pod, with the harness repository open.** The memory feature is already written and verified in this transfer repo. Your job: place one package, make **three small insertions in `agent_factory/runtime/sdk_runner.py`**, wire one tool, set up demo profiles, run the gates, and report. Every edit below quotes the real code it anchors to (verified against the repository in recon round 2). Do not redesign, do not refactor, keep diffs minimal.
 
 ## Non-negotiable rules
 
 - Never log or print memory **content** — ids, counts, statuses only.
-- Never `await` extraction on the stream path — only `schedule_extraction(...)` (the RESPONSE_COMPLETED block is client-visible; recon Q14 confirmed awaited work there delays completion).
-- `llm_complete` stays on the bare-SDK `Runner.run` path (recon Q15: does not re-enter `SdkRunnerAdapter.stream_turn`, writes no harness rows). Never route extraction through the harness runner.
+- Never `await` extraction on the stream path — only `schedule_extraction(...)`. The RESPONSE_COMPLETED block is on the client-visible stream; awaited work there delays every turn's completion.
+- `llm_complete` stays on the bare-SDK `Runner.run` path with an explicit model (already implemented in `memory/_digit.py`) — never route extraction through `SdkRunnerAdapter.stream_turn`.
 - Touch no tables other than `agent_memory_entries` / `agent_memory_user_models`.
-- Anchor edits by the strings given below; if an anchor is missing, stop and report.
+- If an anchor string below is missing, stop and report — don't hunt creatively.
 - If a gate fails twice for the same cause, stop and report.
-
-## What already exists (do not rewrite)
-
-`memory/` — models, store (cap/fence-strip/denylist/dedup), recall, tool impl, extraction, and `_digit.py` **already wired**: Base import with fallback, own async engine on `AGENT_FACTORY_DATABASE_URL`, identity from ToolContext's `ctx.context` dict, flag reads, `llm_complete` via bare SDK agent. `scripts/` — `reset_dev_tables.py --yes`, `verify_phase_a.py`, `verify_phase_b.py`, `seed_demo.py` (all try `agent_factory.memory` first, fall back to standalone layout).
 
 ## Task 1 — Place package, create tables, baseline gate
 
 - [ ] Copy `memory/` → `src/agent_factory/memory` (sibling of `persistence`, `runtime`).
-- [ ] Confirm: `python3 -c "from agent_factory.memory import _digit; print(_digit.WIRING)"` → `base=True` expected now.
-- [ ] Ensure `AGENT_FACTORY_DATABASE_URL` is exported in your shell (same value as `.env`).
-- [ ] `python3 scripts/reset_dev_tables.py --yes` → `RESET: ok ...`
-- [ ] `python3 scripts/verify_phase_a.py` → **`PHASE_A: PASS`** before any harness edit. (If engine creation rejects the URL's `ssl=require` param, mirror how `agent_factory.persistence.database` builds its engine and adjust `_default_session_factory` accordingly — that is the one permitted `_digit.py` edit.)
+- [ ] `python3 -c "from agent_factory.memory import _digit; print(_digit.WIRING)"` → expect `base=True` now that the harness `Base` imports.
+- [ ] Export `AGENT_FACTORY_DATABASE_URL` in your shell (same value as `.env`).
+- [ ] `python3 scripts/reset_dev_tables.py --yes` → `RESET: ok ...` (this is the dev DDL path — `AGENT_FACTORY_DB_CREATE_TABLES=0` in dev, so app startup will not create tables, by design).
+- [ ] `python3 scripts/verify_phase_a.py` → **`PHASE_A: PASS` before any harness edit.**
 
-## Task 2 — Register models with app create_all (parity)
+## Task 2 — Edit 1: expose the flag to tools (one line)
 
-- [ ] At the **bottom** of `agent_factory/persistence/models.py` add:
+File: `agent_factory/runtime/sdk_runner.py`, function `_harness_run_context`. The dict currently starts:
 ```python
-from agent_factory.memory import models as _memory_models  # noqa: E402,F401  (registers memory tables on Base.metadata)
+return {
+    "profile_id": profile.profile_id,
+    "run_id": run_id,
 ```
-Bottom placement avoids the circular import (`memory.models` imports `Base` from this module — already bound by then). If lint/CI complains, the alternative site is `agent_factory/persistence/database.py` next to `Database.create_tables`.
-Note: app-startup create_all only runs when `AGENT_FACTORY_DB_CREATE_TABLES` is truthy; the reset script already created the tables either way.
-
-## Task 3 — Expose the flag to tools (one line)
-
-- [ ] In `agent_factory/runtime/sdk_runner.py`, function `_harness_run_context`, in the dict containing `"profile_id": profile.profile_id`, add:
+- [ ] After the `"profile_id": profile.profile_id,` line add:
 ```python
-"memory_enabled": bool(profile.memory.semantic_memory_enabled),
+    "memory_enabled": bool(profile.memory.semantic_memory_enabled),
 ```
-(`memory/tool.py` fails closed without it — the tool would decline even for flag-on agents.)
 
-## Task 4 — Register the `save_memory` tool
+## Task 3 — Edit 2: recall injection
 
-- [ ] In `agent_factory/tools/registry.py`, mirror the workspace pattern (`_WORKSPACE_TOOLS` + `_build_workspace_sdk_tools`): add a `_MEMORY_TOOLS` class constant and a builder:
+File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, inside `if agent is None and callable(load_instructions):`. The block currently ends:
 ```python
-def _build_memory_sdk_tools(self):
-    from agent_factory.memory.tool import TOOL_NAME, TOOL_DESCRIPTION, save_memory_impl
-
-    async def save_memory(ctx, content: str, category: str = "note") -> str:
-        return await save_memory_impl(ctx, content, category)
-
-    # wrap exactly like the workspace builder wraps its callables with
-    # function_tool(...), using TOOL_NAME / TOOL_DESCRIPTION; NO approval wrapper.
-    return [...]
-```
-- [ ] Include the builder's output wherever `_build_workspace_sdk_tools`' output is aggregated. If the profile is in scope there, gate exposure: only include when `profile.memory.semantic_memory_enabled` (the in-body guard remains as defense-in-depth). If not in scope, include unconditionally — the guard declines for flag-off agents.
-
-## Task 5 — Inject memory pre-turn
-
-- [ ] In `agent_factory/runtime/sdk_runner.py`, `SdkRunnerAdapter.stream_turn`, before instructions are assembled (anchor: the call into `_load_sdk_instructions` / `load_instructions`, upstream of `Runner.run_streamed`):
-```python
-memory_block = None
-_user = getattr(effective_request, "user", None)
-if _user is not None and profile.memory.semantic_memory_enabled:
-    from agent_factory.memory.recall import build_memory_block
-    memory_block = await build_memory_block(
-        profile.profile_id, _user.user_id, getattr(_user, "tenant_id", None) or "default"
+    sdk_instructions = _with_response_preview_context(
+        sdk_instructions,
+        profile,
     )
 ```
-- [ ] Thread `memory_block` into `OpenAIAgentsSdkAdapter.load_instructions` (file `agent_factory/runtime/sdk_adapter.py`): add keyword param `memory_block: str | None = None` to the signature (after `include_skill_index`), and immediately before the final return of the assembled string:
+- [ ] Immediately after that assignment (still inside the `if agent is None ...` block, before `sdk_agent = agent or self._sdk_adapter.build_agent(`), insert:
 ```python
-if memory_block:
-    instructions = instructions + "\n\n" + memory_block
+    if sdk_instructions and profile.memory.semantic_memory_enabled:
+        _user = getattr(effective_request, "user", None)
+        if _user is not None:
+            from agent_factory.memory.recall import build_memory_block
+
+            _memory_block = await build_memory_block(
+                profile.profile_id,
+                _user.user_id,
+                getattr(_user, "tenant_id", None) or "default",
+            )
+            if _memory_block:
+                sdk_instructions = f"{sdk_instructions}\n\n{_memory_block}"
 ```
-(Adjust the local variable name to whatever the function returns. If `_load_sdk_instructions` sits between, thread the kwarg through it. Existing callers pass nothing → byte-identical behavior.)
+(Lazy import is deliberate: flag-off agents never import the memory package. `stream_turn` is async — the `await` is legal here.)
+
+## Task 4 — Wire the `save_memory` tool ⟨ROUND-3 SLOT — coordinator fills the exact site before you run⟩
+
+**Primary variant (custom tool):** at the site where `ToolRegistry` is constructed at app wiring ⟨ROUND-3: module + anchor⟩, build the tool with the registry's own `function_tool` ⟨ROUND-3: exact import⟩ and register it:
+```python
+from agent_factory.memory.tool import TOOL_NAME, TOOL_DESCRIPTION, save_memory_impl
+
+async def _save_memory(ctx, content: str, category: str = "note") -> str:
+    return await save_memory_impl(ctx, content, category)
+
+registry.register_custom_tool(
+    TOOL_NAME,
+    function_tool(
+        _save_memory,
+        name_override=TOOL_NAME,
+        description_override=TOOL_DESCRIPTION,
+    ),
+)
+```
+Then add `save_memory` to the demo profile's `tools:` list (Task 5) so `plan.resolved` carries it ⟨ROUND-3: confirmed semantics⟩. Do **not** pass `needs_approval` (recon Q7: approval only applies when explicitly passed).
+
+**Fallback variant (native builder)** — only if the coordinator marks the primary NO-GO: in `agent_factory/tools/registry.py`, mirror `_build_workspace_sdk_tools` exactly: add `_MEMORY_TOOLS` to the class constants and to the `known_tools` union in `build_sdk_tools`; add a `_build_memory_sdk_tools(self, function_tool, tool_context_cls, profile, plan)` method gated on `"save_memory" in plan.resolved` that returns `[function_tool(_save_memory, name_override=..., description_override=...)]`; aggregate it in `build_sdk_tools` next to the workspace block via `tool_namespace(name="memory", description="Persistent user-memory tools.", tools=memory_tools)`.
+
+## Task 5 — Demo profiles
+
+- [ ] `cp -r tests/fixtures/profiles/test-full profiles/` and `cp -r tests/fixtures/profiles/test-minimal profiles/` (the run script's `AGENT_FACTORY_PROFILE_PATHS` defaults to repo `profiles/`).
+- [ ] In `profiles/test-full/agent.profile.yaml`: set `memory.semantic_memory_enabled: true` (the section exists; currently `false`) and add `save_memory` to its `tools:` list ⟨ROUND-3: exact list shape⟩. Leave `test-minimal` untouched (flag-off agent).
+- [ ] Restart the backend process: `scripts/run-local-with-profiles.sh`.
 
 ## Task 6 — Phase A acceptance (GATE — report before Phase B)
 
-- [ ] Pick a dev agent (e.g. `test-full`): set `memory.semantic_memory_enabled: true` in its `agent.profile.yaml`; keep a second agent flag-off. Restart the backend **process** (`scripts/run-local-with-profiles.sh`).
-- [ ] POST `/api/v1/turns/stream` (dev auth is bypassed unless `DEPLOYMENT_ENVIRONMENT=prod` / `AGENT_FACTORY_REQUIRE_AUTH`):
+Dev auth is bypassed (`DEPLOYMENT_ENVIRONMENT` ≠ prod, `AGENT_FACTORY_REQUIRE_AUTH` unset).
+
+- [ ] POST `/api/v1/turns/stream`:
 ```json
-{"profile_id": "test-full", "input": "Remember: I always want answers as exactly three bullet points, addressed to me by name. Save that.", "user": {"user_id": "user-a", "email": "user-a@example.com"}, "runtime": {"execution_engine": "sdk"}}
+{"profile_id": "test-full",
+ "input": "Remember: I always want answers as exactly three bullet points, addressed to me by name. Save that.",
+ "user": {"user_id": "console-user", "email": "console-user"},
+ "runtime": {"execution_engine": "sdk"}}
 ```
-Expect a `save_memory` tool.started/completed in the stream and one `source='tool'` row in `agent_memory_entries`.
-- [ ] Restart the backend process. Send a **new thread** (omit `thread_id`), same profile + user, input `"Give me a quick status-update template."` → reply is three bullets, addressed by name.
-- [ ] Isolation: same input with `"user_id": "user-b"` → no personalization. Same input, flag-off profile, user-a → no personalization, and a "Remember..." turn there gets a decline from the tool (or no tool at all if exposure-gated).
-- [ ] Report Phase A in the format below. **Stop here and report before Task 7.**
+Expect `tool.started`/`tool.completed` for `save_memory` in the SSE stream; then one row `source='tool'` in `agent_memory_entries`.
+- [ ] Restart the backend process. New request, same profile+user, **no thread_id** (new thread), input `"Give me a quick status-update template."` → reply is three bullets, addressed by name.
+- [ ] Isolation: same request with `"user_id": "user-b", "email": "user-b"` → no personalization. Same requests against `test-minimal` → no injection, and the "Remember..." turn there produces no `save_memory` call (tool not in its plan) — if the tool somehow fires, it must return the decline message.
+- [ ] **Report in the format below. Stop. Do not start Task 7 until told to proceed.**
 
-## Task 7 — Phase B: post-turn extraction
+## Task 7 — Edit 3: post-turn extraction (Phase B)
 
-- [ ] In `SdkRunnerAdapter.stream_turn`, inside the `if output_event.event == EventName.RESPONSE_COMPLETED:` block, after the governance-audit yield and before `yield event(EventName.RUN_COMPLETED, ...)`:
+File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn`, inside `if output_event.event == EventName.RESPONSE_COMPLETED:`. The block currently reads (abridged):
 ```python
-_user = getattr(effective_request, "user", None)
-if _user is not None and profile.memory.semantic_memory_enabled:
-    from agent_factory.memory import _digit as _mem
-    from agent_factory.memory.extraction import schedule_extraction
-    schedule_extraction(
-        _mem.Identity(profile.profile_id, _user.user_id,
-                      getattr(_user, "tenant_id", None) or "default", thread_id),
-        str(effective_request.input), str(final_output),
-    )  # fire-and-forget — MUST NOT be awaited
+    result.cancel()
+    audit_payload = agt_audit_payload(...)
+    if audit_payload is not None:
+        yield event(EventName.GOVERNANCE_AUDIT, ...)
+        sequence += 1
+    yield event(EventName.RUN_COMPLETED, ..., final_output=final_output)
+    return
 ```
-- [ ] Optional: `export AGENT_FACTORY_MEMORY_MODEL=<cheap model name>` (else SDK default; names come from `agent_factory.config.get_model_name` / `profile.model.default`).
-- [ ] `python3 scripts/verify_phase_b.py` → **`PHASE_B: PASS`** (live check included now that `llm_complete` is wired).
-- [ ] Live: flag-on agent, new thread, input `"By the way, I work on the payments reconciliation team."` → within ~30s one `source='extraction'` row. Then a pure chit-chat turn (`"thanks, that's all!"`) → no new row.
+- [ ] Between the end of the `if audit_payload is not None:` block and the `yield event(EventName.RUN_COMPLETED,` line, insert (do not touch `sequence` handling or the trailing `return`):
+```python
+    _user = getattr(effective_request, "user", None)
+    if _user is not None and profile.memory.semantic_memory_enabled:
+        from agent_factory.memory import _digit as _mem
+        from agent_factory.memory.extraction import schedule_extraction
+
+        schedule_extraction(
+            _mem.Identity(
+                profile.profile_id,
+                _user.user_id,
+                getattr(_user, "tenant_id", None) or "default",
+                thread_id,
+            ),
+            str(effective_request.input),
+            final_output,
+        )
+```
+(`final_output` is already a string here — `_serialize_final_output(...)` or `"".join(streamed_text_chunks)`.)
+
+- [ ] Optional cost control: `export AGENT_FACTORY_MEMORY_MODEL=gpt-5.4-mini` (else defaults to `get_model_name()` → `gpt-5.4` in dev).
+- [ ] `python3 scripts/verify_phase_b.py` → **`PHASE_B: PASS`** (live model call included now).
+- [ ] Live acceptance: `test-full`, new thread, input `"By the way, I work on the payments reconciliation team."` → let the turn fully complete, wait ~15s → one `source='extraction'` row. Then a chit-chat turn (`"thanks, that's all!"`) → no new row. (Known limitation: if the client disconnects mid-stream, extraction for that turn may not run — do not chase this as a bug.)
 
 ## Fallback ladder (take the highest rung that works, report which)
 
 1. Full build (Tasks 1–7).
-2. Phase A only (Tasks 1–6) — headline demo fully covered.
-3. Injection + seeded rows (`scripts/seed_demo.py --profile test-full --user user-a`) — if tool registration is blocked.
+2. Phase A only (Tasks 1–6) — the headline demo is fully covered.
+3. Injection + seeded rows (`python3 scripts/seed_demo.py --profile test-full --user console-user`) — if tool wiring is blocked entirely.
 
 ## Report format (paste-able, one screen, no code dumps)
 
@@ -117,17 +150,16 @@ if _user is not None and profile.memory.semantic_memory_enabled:
 MEMORY BUILD REPORT — Phase A|A+B
 WIRING: base=.. session=.. identity=.. flag=.. llm=..
 PHASE_A: PASS|FAIL   PHASE_B: PASS|PARTIAL|FAIL|SKIPPED
-files touched (harness):
-  - persistence/models.py (bottom import) +1
-  - runtime/sdk_runner.py (_harness_run_context) +1
-  - runtime/sdk_runner.py (stream_turn: inject) +N
-  - runtime/sdk_adapter.py (load_instructions kwarg) +N
-  - tools/registry.py (_MEMORY_TOOLS + builder) +N
-  - runtime/sdk_runner.py (stream_turn: schedule_extraction) +N   [Phase B]
+harness edits:
+  - sdk_runner.py _harness_run_context: +1 line OK|FAIL
+  - sdk_runner.py stream_turn injection: +N lines OK|FAIL
+  - tool wiring (<site>): OK|FAIL (variant: custom|builder)
+  - sdk_runner.py stream_turn extraction: +N lines OK|FAIL|SKIPPED
+  - profiles: test-full flag+tool OK|FAIL, test-minimal copied OK|FAIL
 acceptance:
   save via tool: OK|FAIL     rows source=tool: <n>
   restart + new-thread recall: OK|FAIL
-  user-b isolation: OK|FAIL  flag-off: no injection OK|FAIL, tool declines OK|FAIL
+  user-b isolation: OK|FAIL  flag-off agent: no injection OK|FAIL, no save OK|FAIL
   extraction row: OK|FAIL|SKIPPED   chit-chat writes nothing: OK|FAIL|SKIPPED
 fallback rung used: 1|2|3
 blockers/notes: <≤3 lines>

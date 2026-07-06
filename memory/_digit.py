@@ -48,6 +48,9 @@ except ImportError:
 # this module keeps its own engine on the SAME database via
 # AGENT_FACTORY_DATABASE_URL — the exact URL the app uses. Small separate
 # pool; acceptable for the prototype, swap to shared DI later.
+# URL normalization: prefer the harness's own normalizer (round 2 found
+# agent_factory.persistence.urls.normalize_async_database_url); fall back to
+# the simple scheme rewrite when running standalone.
 # --------------------------------------------------------------------------
 _engine = None
 _session_factory = None
@@ -58,9 +61,18 @@ def _default_session_factory():
     if _session_factory is None:
         from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-        url = os.environ["AGENT_FACTORY_DATABASE_URL"]
-        if url.startswith("postgresql://"):
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        url = os.environ.get("AGENT_FACTORY_DATABASE_URL")
+        if not url:
+            raise RuntimeError(
+                "AGENT_FACTORY_DATABASE_URL is not set — agent memory needs the harness database URL"
+            )
+        try:
+            from agent_factory.persistence.urls import normalize_async_database_url  # type: ignore
+
+            url = normalize_async_database_url(url)
+        except ImportError:
+            if url.startswith("postgresql://"):
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
         _engine = create_async_engine(url, pool_pre_ping=True)
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
     return _session_factory
@@ -153,19 +165,33 @@ def memory_enabled(profile_or_ctx) -> bool:
 # bare SDK agent via Runner.run: recon verified it does NOT re-enter
 # SdkRunnerAdapter.stream_turn (no post-turn recursion) and writes no
 # harness thread/run/event rows. Tool-less, so no side effects.
-# Model: AGENT_FACTORY_MEMORY_MODEL env override, else the SDK default.
+# Round 2 correction: mirror SdkSubagentExecutor exactly — pass the model
+# EXPLICITLY on both Agent and RunConfig, tracing disabled. Model resolution:
+# AGENT_FACTORY_MEMORY_MODEL env override, else the harness default from
+# agent_factory.config.get_model_name() (AZURE_OPENAI_MODEL in dev).
 # --------------------------------------------------------------------------
 async def llm_complete(prompt: str) -> str:
-    from agents import Agent, Runner  # lazy: Phase A never needs this
+    from agents import Agent, Runner, RunConfig  # lazy: Phase A never needs this
 
-    kwargs = {}
-    model = os.getenv("AGENT_FACTORY_MEMORY_MODEL")
-    if model:
-        kwargs["model"] = model
+    try:
+        from agent_factory.config import get_model_name  # type: ignore
+
+        default_model = get_model_name()
+    except ImportError:
+        default_model = os.getenv("AZURE_OPENAI_MODEL") or os.getenv("OPENAI_MODEL") or "gpt-4.1"
+    model = os.getenv("AGENT_FACTORY_MEMORY_MODEL") or default_model
     agent = Agent(
         name="memory-extractor",
         instructions="You extract durable memories. Reply with valid JSON only.",
-        **kwargs,
+        model=model,
     )
-    result = await Runner.run(agent, prompt)
+    result = await Runner.run(
+        agent,
+        prompt,
+        run_config=RunConfig(
+            model=model,
+            tracing_disabled=True,
+            workflow_name="memory-extraction",
+        ),
+    )
     return str(result.final_output or "")

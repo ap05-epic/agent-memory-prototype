@@ -5,8 +5,10 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
 ## Pre-demo checklist (day before, and 30 min before)
 
 - [ ] `python3 scripts/verify_phase_a.py` prints `PHASE_A: PASS` on the pod.
-- [ ] Agent A (e.g. `test-full`): `memory.semantic_memory_enabled: true` in its `agent.profile.yaml`. Agent B: flag absent/false. **Restart the backend process** after editing (`scripts/run-local-with-profiles.sh`).
-- [ ] Know your console user_id: run beat 1 once in rehearsal and read `user_id` from the DB row (console identity falls back to `console-user` unless a header sets it). Use that value everywhere below as `<u1>`.
+- [ ] Demo profiles staged (the run script reads repo `profiles/`, which is empty by default — the fixtures live elsewhere):
+  `cp -r tests/fixtures/profiles/test-full profiles/` (Agent A) and `cp -r tests/fixtures/profiles/test-minimal profiles/` (Agent B, flag-off).
+- [ ] Agent A: `memory.semantic_memory_enabled: true` + `save_memory` in its tools list, in `profiles/test-full/agent.profile.yaml`. Agent B: untouched. **Restart the backend process** after editing (`scripts/run-local-with-profiles.sh`).
+- [ ] Console identity is `console-user` (from the x-user-email header fallback) — that's `<u1>` below. Confirm once in rehearsal by reading `user_id` off the beat-2 DB row.
 - [ ] DB query ready in a terminal tab:
   `SELECT content, category, source, thread_id, user_id, created_at FROM agent_memory_entries WHERE user_id='<u1>' ORDER BY created_at DESC LIMIT 5;`
 - [ ] Second-user curl ready (dev auth is bypassed):
@@ -46,7 +48,7 @@ Answer arrives as three bullets, addressed by name.
 **Optional beat (only if Phase B passed):** on Agent A, naturally:
 > "By the way, I work on the payments reconciliation team."
 
-Finish the turn, wait ~15s, re-run the DB query → a `source='extraction'` row appeared with no tool call. *"Same pipeline, autonomous path — and the seam the phase-two skills reviewer will share."*
+**Let the turn fully finish and keep the tab open** (extraction is scheduled at turn completion — a mid-stream disconnect can skip it), wait ~15s, re-run the DB query → a `source='extraction'` row appeared with no tool call. *"Same pipeline, autonomous path — and the seam the phase-two skills reviewer will share."*
 
 ## Fallbacks (rehearsed, not improvised)
 

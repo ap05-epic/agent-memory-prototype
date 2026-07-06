@@ -15,9 +15,10 @@ scripts/
   verify_phase_b.py           # gate: prints PHASE_B: PASS|PARTIAL|FAIL
   seed_demo.py                # demo fallback row
 docs/
-  recon/ROUND_1.md            # ① run this with the recon agent first
-  IMPLEMENTATION_BRIEF.md     # ② then hand this + the answers to the implementation agent
+  recon/ROUND_3.md            # ① run this with the recon agent next (rounds 1+2 done)
+  IMPLEMENTATION_BRIEF.md     # ② then hand this to the implementation agent (after round-3 slot fill)
   DEMO_RUNBOOK.md             # ③ then rehearse this
+  HOW_IT_WORKS.md             # the full system explainer (present from this)
   DESIGN_DRAFT.md             # design doc for team review
   research/REFERENCE_NOTES.md # source-level notes: Hermes Agent, OpenClaw, Letta, mem0
 ```
@@ -30,10 +31,10 @@ docs/
 
 ## Status
 
-- [x] Reference research (4 systems, source-level)
-- [x] Design draft
-- [x] Recon round 1 answered — **`_digit.py` is wired against it** (Base, ToolContext identity, flag paths, safe LLM path)
-- [x] Implementation brief finalized: 5 anchored harness edits + gates
-- [ ] Phase A build on pod → `PHASE_A: PASS` + acceptance report
-- [ ] Phase B build on pod → `PHASE_B: PASS`
+- [x] Reference research (4 systems, source-level) · design draft
+- [x] Recon rounds 1 + 2 answered — `_digit.py` wired, 22 adversarial findings folded in
+- [x] Implementation plan approved (joint session): 3 sdk_runner insertions + custom-tool wiring + profile yaml
+- [x] HOW_IT_WORKS.md explainer
+- [ ] Recon round 3 (`docs/recon/ROUND_3.md`) → pins tool wiring → brief slot-fill
+- [ ] Opus build: Phase A → gate → Phase B → reports
 - [ ] Rehearsal (DEMO_RUNBOOK) + demo
