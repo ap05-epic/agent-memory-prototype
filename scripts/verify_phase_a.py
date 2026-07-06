@@ -13,10 +13,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import delete, select  # noqa: E402
 
-from memory import _digit  # noqa: E402
-from memory.models import MemoryEntry  # noqa: E402
-from memory.recall import render_block  # noqa: E402
-from memory.store import add_entry, count_entries, discard_entry, recent_entries  # noqa: E402
+try:  # harness placement (src/agent_factory/memory)
+    from agent_factory.memory import _digit  # noqa: E402
+    from agent_factory.memory.models import MemoryEntry  # noqa: E402
+    from agent_factory.memory.recall import render_block  # noqa: E402
+    from agent_factory.memory.store import add_entry, count_entries, discard_entry, recent_entries  # noqa: E402
+except ImportError:  # standalone transfer-repo layout
+    from memory import _digit  # noqa: E402
+    from memory.models import MemoryEntry  # noqa: E402
+    from memory.recall import render_block  # noqa: E402
+    from memory.store import add_entry, count_entries, discard_entry, recent_entries  # noqa: E402
 
 P, U = "verify-profile", "verify-user"
 FAILURES: list[str] = []

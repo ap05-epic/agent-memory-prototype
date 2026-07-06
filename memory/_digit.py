@@ -1,10 +1,9 @@
 """THE SEAM FILE — the only module that touches host-harness symbols.
 
-Every function here has a working default so the package imports and the
-scripts run standalone against a dev database. The implementation agent
-replaces the bodies marked RECON:<Qn> using the recon answer sheet, then
-flips the matching WIRING flag to True. Nothing outside this file needs
-editing to integrate with the harness.
+WIRED against recon round 1 (2026-07-06). Every function still degrades
+gracefully off-harness so the package imports and the scripts run standalone
+against any dev database. WIRING flags are computed where possible;
+verify_phase_a.py prints the truth for the environment it runs in.
 """
 
 from __future__ import annotations
@@ -16,28 +15,26 @@ from dataclasses import dataclass
 
 log = logging.getLogger("agent_memory")
 
-# Flipped to True per-slot by the implementation agent as each seam is wired.
-# verify_phase_a.py prints this dict; base/session/identity/flag gate Phase A,
-# llm gates Phase B.
 WIRING = {
-    "base": False,      # RECON:Q7
-    "session": False,   # RECON:Q8
-    "identity": False,  # RECON:Q4/Q5
-    "flag": False,      # RECON:Q16
-    "llm": False,       # RECON:Q15
+    "base": False,      # set below: True when the harness Base imported
+    "session": True,    # deliberate: own engine from AGENT_FACTORY_DATABASE_URL (see Q8 note)
+    "identity": True,   # Q4/Q5: ToolContext.context dict keys profile_id/user_id/thread_id
+    "flag": True,       # Q16: profile.memory.semantic_memory_enabled; tools via ctx key
+    "llm": True,        # Q15: mini SDK Runner.run — confirmed non-recursive path
 }
 
 
 # --------------------------------------------------------------------------
-# RECON:Q7 — declarative Base.
-# Replace the fallback with:   from <harness.db.module> import Base
-# and delete the fallback block. If the harness model-import site cannot be
-# found, the local Base still works: reset_dev_tables.py creates the tables
-# directly, independent of the app's create_all.
+# Q7 — declarative Base.
+# On the harness: agent_factory.persistence.models.Base. The fallback keeps
+# the package testable off-harness; reset_dev_tables.py creates the tables
+# directly either way, independent of app-startup create_all
+# (Database.create_tables, gated by AGENT_FACTORY_DB_CREATE_TABLES).
 # --------------------------------------------------------------------------
 try:
-    raise ImportError  # RECON:Q7 — remove this line when wiring the real Base
-    # from harness.db import Base  # RECON:Q7 — real import goes here
+    from agent_factory.persistence.models import Base  # type: ignore
+
+    WIRING["base"] = True
 except ImportError:
     from sqlalchemy.orm import declarative_base
 
@@ -45,10 +42,12 @@ except ImportError:
 
 
 # --------------------------------------------------------------------------
-# RECON:Q8 — async session factory.
-# Default builds its own engine from AGENT_FACTORY_DATABASE_URL (confirmed
-# env var). This works as-is on the pod (separate pool); swap to the
-# harness's own async_sessionmaker if Q8 shows that is a one-liner.
+# Q8 — sessions.
+# The harness factory (agent_factory.persistence.database.Database.
+# session_factory) lives on an instance we can't cleanly reach from here, so
+# this module keeps its own engine on the SAME database via
+# AGENT_FACTORY_DATABASE_URL — the exact URL the app uses. Small separate
+# pool; acceptable for the prototype, swap to shared DI later.
 # --------------------------------------------------------------------------
 _engine = None
 _session_factory = None
@@ -69,19 +68,21 @@ def _default_session_factory():
 
 @asynccontextmanager
 async def get_session():
-    """Yield an AsyncSession. Callers commit explicitly."""
-    factory = _default_session_factory()  # RECON:Q8 — or the harness factory
+    """Yield an AsyncSession. Callers commit explicitly (same shape as
+    AsyncThreadRepository: `async with factory() as session: ...`)."""
+    factory = _default_session_factory()
     async with factory() as session:
         yield session
 
 
 # --------------------------------------------------------------------------
-# RECON:Q4/Q5 — identity extraction, ctx-in.
-# One accessor for all three seams (turn service, tool callable, post-turn
-# hook); pass whatever context object that seam holds. The default probes
-# common attribute chains and refuses to half-resolve: BOTH profile_id and
-# user_id must be found, else None (callers then no-op — memory silently
-# stays off rather than mis-keying rows).
+# Q4/Q5 — identity.
+# Two shapes exist:
+#   * SDK tools: ctx is agents.tool_context.ToolContext; ctx.context is the
+#     dict built by agent_factory.runtime.sdk_runner._harness_run_context
+#     with keys profile_id / user_id / thread_id / run_id (NO tenant_id).
+#   * Harness call sites (stream_turn): profile + effective_request are in
+#     scope — construct Identity directly there, don't probe.
 # --------------------------------------------------------------------------
 @dataclass
 class Identity:
@@ -91,62 +92,80 @@ class Identity:
     thread_id: str | None = None
 
 
-def _probe(obj, *chains):
-    for chain in chains:
-        cur = obj
-        for attr in chain.split("."):
-            cur = getattr(cur, attr, None)
-            if cur is None:
-                break
-        if isinstance(cur, str) and cur:
-            return cur
-    return None
+def _lookup(source, key: str):
+    if source is None:
+        return None
+    if isinstance(source, dict):
+        val = source.get(key)
+    else:
+        val = getattr(source, key, None)
+    return val if isinstance(val, str) and val else None
 
 
 def get_identity(ctx) -> Identity | None:
+    """For tool callables: pass the SDK ToolContext (or its .context dict).
+    Returns None unless BOTH profile_id and user_id resolve — memory then
+    silently no-ops rather than mis-keying rows."""
     if ctx is None:
         return None
-    # RECON:Q4/Q5 — replace probe chains with the confirmed attribute paths.
-    profile_id = _probe(ctx, "profile.id", "profile_id", "profile.profile_id")
-    user_id = _probe(ctx, "user.user_id", "user_id", "user_context.user_id")
+    sources = [getattr(ctx, "context", None), ctx]
+    profile_id = user_id = thread_id = None
+    for s in sources:
+        profile_id = profile_id or _lookup(s, "profile_id")
+        user_id = user_id or _lookup(s, "user_id")
+        thread_id = thread_id or _lookup(s, "thread_id")
     if not profile_id or not user_id:
         return None
-    tenant_id = _probe(ctx, "user.tenant_id", "tenant_id") or "default"
-    thread_id = _probe(ctx, "thread_id", "thread.id")
-    return Identity(profile_id, user_id, tenant_id, thread_id)
+    tenant_id = next(filter(None, (_lookup(s, "tenant_id") for s in sources)), None)
+    return Identity(profile_id, user_id, tenant_id or "default", thread_id)
 
 
 # --------------------------------------------------------------------------
-# RECON:Q16 — the per-agent opt-in flag.
-# Pass the profile (or a ctx holding it). Default probes plausible paths and
-# fails CLOSED: unknown shape means memory stays off for that agent.
+# Q16 — the opt-in flag: profile.memory.semantic_memory_enabled (bool,
+# default False, lives in agent.profile.yaml; flip + restart backend).
+# Tools can't see the profile, so the harness adds a "memory_enabled" key to
+# the _harness_run_context dict (see IMPLEMENTATION_BRIEF Task 3). Accepts a
+# profile object, a ToolContext, or the context dict. Fails CLOSED.
 # --------------------------------------------------------------------------
 def memory_enabled(profile_or_ctx) -> bool:
     if profile_or_ctx is None:
         return False
-    # RECON:Q16 — replace with the confirmed flag path.
-    for chain in (
-        "semantic_memory_enabled",
-        "profile.semantic_memory_enabled",
-        "features.semantic_memory_enabled",
-        "profile.features.semantic_memory_enabled",
-    ):
-        cur = profile_or_ctx
-        for attr in chain.split("."):
-            cur = getattr(cur, attr, None)
-            if cur is None:
-                break
-        if cur is not None:
-            return bool(cur)
+    for source in (getattr(profile_or_ctx, "context", None), profile_or_ctx):
+        if source is None:
+            continue
+        if isinstance(source, dict):
+            if "memory_enabled" in source:
+                return bool(source["memory_enabled"])
+            continue
+        mem = getattr(source, "memory", None)
+        if mem is not None and hasattr(mem, "semantic_memory_enabled"):
+            return bool(mem.semantic_memory_enabled)
+        prof = getattr(source, "profile", None)
+        mem = getattr(prof, "memory", None) if prof is not None else None
+        if mem is not None and hasattr(mem, "semantic_memory_enabled"):
+            return bool(mem.semantic_memory_enabled)
     return False
 
 
 # --------------------------------------------------------------------------
-# RECON:Q15 — side LLM call for post-turn extraction (Phase B only).
-# CONTRACT: must be a raw model-client call. It must NOT run through the
-# agent runner / SDK agent path — that would re-enter the post-turn hook
-# (recursion) and write thread/run/event rows.
-# Raises at call time, not import time, so Phase A never depends on it.
+# Q15 — side LLM call for extraction (Phase B).
+# No raw internal client exists in the harness. The confirmed-safe path is a
+# bare SDK agent via Runner.run: recon verified it does NOT re-enter
+# SdkRunnerAdapter.stream_turn (no post-turn recursion) and writes no
+# harness thread/run/event rows. Tool-less, so no side effects.
+# Model: AGENT_FACTORY_MEMORY_MODEL env override, else the SDK default.
 # --------------------------------------------------------------------------
 async def llm_complete(prompt: str) -> str:
-    raise NotImplementedError("RECON:Q15 — wire the harness's internal model client")
+    from agents import Agent, Runner  # lazy: Phase A never needs this
+
+    kwargs = {}
+    model = os.getenv("AGENT_FACTORY_MEMORY_MODEL")
+    if model:
+        kwargs["model"] = model
+    agent = Agent(
+        name="memory-extractor",
+        instructions="You extract durable memories. Reply with valid JSON only.",
+        **kwargs,
+    )
+    result = await Runner.run(agent, prompt)
+    return str(result.final_output or "")

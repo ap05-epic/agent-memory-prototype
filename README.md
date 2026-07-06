@@ -32,9 +32,8 @@ docs/
 
 - [x] Reference research (4 systems, source-level)
 - [x] Design draft
-- [x] Recon round 1 brief
-- [x] Package + scripts + implementation brief + runbook authored
-- [ ] Recon answers → fill `RECON:Qn` slots (find them: `grep -rn "RECON:" memory/_digit.py`)
-- [ ] Phase A build → `PHASE_A: PASS`
-- [ ] Phase B build → `PHASE_B: PASS`
-- [ ] Rehearsal + demo
+- [x] Recon round 1 answered — **`_digit.py` is wired against it** (Base, ToolContext identity, flag paths, safe LLM path)
+- [x] Implementation brief finalized: 5 anchored harness edits + gates
+- [ ] Phase A build on pod → `PHASE_A: PASS` + acceptance report
+- [ ] Phase B build on pod → `PHASE_B: PASS`
+- [ ] Rehearsal (DEMO_RUNBOOK) + demo

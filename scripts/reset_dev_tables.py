@@ -10,8 +10,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from memory import _digit  # noqa: E402
-from memory.models import MemoryEntry, MemoryUserModel  # noqa: E402
+try:  # harness placement (src/agent_factory/memory)
+    from agent_factory.memory import _digit  # noqa: E402
+    from agent_factory.memory.models import MemoryEntry, MemoryUserModel  # noqa: E402
+except ImportError:  # standalone transfer-repo layout
+    from memory import _digit  # noqa: E402
+    from memory.models import MemoryEntry, MemoryUserModel  # noqa: E402
 
 TABLES = [MemoryEntry.__table__, MemoryUserModel.__table__]
 
