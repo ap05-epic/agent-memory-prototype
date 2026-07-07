@@ -15,13 +15,25 @@ scripts/
   verify_phase_b.py           # gate: prints PHASE_B: PASS|PARTIAL|FAIL
   seed_demo.py                # demo fallback row
 docs/
-  recon/ROUND_3.md            # ① run this with the recon agent next (rounds 1+2 done)
-  IMPLEMENTATION_BRIEF.md     # ② then hand this to the implementation agent (after round-3 slot fill)
-  DEMO_RUNBOOK.md             # ③ then rehearse this
-  HOW_IT_WORKS.md             # the full system explainer (present from this)
-  DESIGN_DRAFT.md             # design doc for team review
+  # ── Read these ────────────────────────────────────────────────
+  SHOWCASE.md                 # ★ clean, digestible overview for the team lead (Subomi)
+  TECHNICAL_DEEP_DIVE.md      # ★ know-everything explainer: every file, edit, decision
+  DEMO_WALKTHROUGH.md         # ★ the demo narrated step-by-step, with what you see
+  # ── Operational / build history ───────────────────────────────
+  DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
+  INDICATORS.md               # the recall-indicator design + implementation
+  IMPLEMENTATION_BRIEF.md     # the build brief handed to the implementation agent
+  DESIGN_DRAFT.md             # early design doc
+  HOW_IT_WORKS.md             # earlier combined explainer (superseded by TECHNICAL_DEEP_DIVE)
+  recon/ROUND_1..4.md         # the recon question rounds
   research/REFERENCE_NOTES.md # source-level notes: Hermes Agent, OpenClaw, Letta, mem0
 ```
+
+## Which doc do I want?
+
+- **Showing the team lead?** → `docs/SHOWCASE.md` (5-min read, diagrams, honest roadmap).
+- **Need to understand it fully / answer any question?** → `docs/TECHNICAL_DEEP_DIVE.md`.
+- **Running or watching the demo?** → `docs/DEMO_WALKTHROUGH.md` (what you see) + `docs/DEMO_RUNBOOK.md` (how to launch).
 
 ## The loop
 
