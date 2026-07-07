@@ -8,10 +8,11 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
   ```
   unset AZURE_OPENAI_BASE_URL OPENAI_BASE_URL OPENAI_API_KEY OPENAI_AGENTS_API
   export AZURE_OPENAI_API_KEY=<from .env>  AZURE_OPENAI_ENDPOINT=<from .env>
-  export AGENT_FACTORY_PROFILE_PATHS=<repo>/profiles
+  export AGENT_FACTORY_PROFILE_PATHS=<dir holding memory-demo + test-minimal>
+  export PORT=8080            # .env may set PORT=50001, which can be occupied on the pod
   scripts/run-local-with-profiles.sh
   ```
-  Verify a plain turn works before demoing. (Worth flagging to the platform team: remove the stale pod `AZURE_OPENAI_BASE_URL` so `.env` just works.)
+  Verify a plain turn works before demoing. Notes from the live run: (1) the profile-path dir on the pod was `tests/fixtures/profiles` (where `memory-demo` and `test-minimal` were staged) — point `AGENT_FACTORY_PROFILE_PATHS` at whichever dir actually holds them; (2) if health-check fails, check the port isn't 50001-occupied (hence the explicit `PORT=8080`). Worth flagging to the platform team: remove the stale pod `AZURE_OPENAI_BASE_URL` so `.env` just works.
 - [ ] `python3 scripts/verify_phase_a.py` prints `PHASE_A: PASS` on the pod.
 - [ ] Demo profiles staged into the harness `profiles/` dir (the run script reads it):
   - **Agent A = `memory-demo`** — the purpose-built demo agent from this transfer repo (`profiles/memory-demo/`); copy it in. It already has `semantic_memory_enabled: true`, `save_memory` in `function_tools`, `emit_tool_events: true`, and `model.default: gpt-5.4`. Nothing to edit.
@@ -44,7 +45,7 @@ The console renders the `save_memory` tool call (tool.started/completed). Say: *
 **Beat 4 — recall (the headline).** Same agent, **new thread** — say out loud: *"New conversation, new thread id — chat history hasn't followed us; this is the memory table."* Ask something neutral:
 > "Give me a quick status-update template."
 
-Answer arrives as exactly three bullets — the saved preference honored in a fresh thread after a restart. **This is the moment.**
+Answer arrives as exactly three bullets — the saved preference honored in a fresh thread after a restart. **This is the moment.** And above the answer, a **🧠 Recalled N memories** status line — the recall indicator, showing the agent reached into memory (verified live 2026-07-07). Point at it: *"You can see it recall — it's not guessing, it's using what it stored."*
 
 > Note on "by name": in the live run the reply opened with "Hey —" because the console user's id is literally `console-user`, not a real name. The **format** recall (three bullets) is the reliable, unmistakable proof — lead with that. If you want a real name in the greeting, send the turn with an `x-uname: <YourName>` header (or just explain the placeholder). Don't let the name be the headline; the format is.
 
