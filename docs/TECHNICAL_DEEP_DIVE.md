@@ -256,7 +256,19 @@ Full source-level notes: `docs/research/REFERENCE_NOTES.md`.
 
 ---
 
-## 14. Glossary
+## 14. FAQ
+
+**Isn't this just chat history? That's already in the DB.** History lives in `agent_sessions` / `agent_messages`, keyed per thread — a new thread starts empty. Memory lives in `agent_memory_entries`, keyed by (agent, user) — it crosses threads. The demo recalls in a brand-new thread to make exactly this point.
+
+**What happens if the memory DB call fails mid-turn?** Recall returns `(None, 0)` and the turn runs without memory; extraction swallows the failure. There is no code path where memory breaks a turn.
+
+**What does it cost per turn?** For flag-on agents only: recall is one indexed SELECT (~ms) plus ≤8k chars of prompt; extraction is one small-model call after the turn (skippable, and pinnable to a mini model via `AGENT_FACTORY_MEMORY_MODEL`). Flag-off agents pay nothing — the package isn't imported.
+
+**How do I turn it on for an agent?** Set `memory.semantic_memory_enabled: true` and add `save_memory` to `tools.function_tools` in the profile yaml, then restart. Off is the default for every agent.
+
+**How do I wipe a user's memory?** Today: `UPDATE agent_memory_entries SET discarded_at = now() WHERE profile_id=… AND user_id=…` — soft, reversible, audit-preserving. Full dev reset: `scripts/reset_dev_tables.py --yes`.
+
+## 15. Glossary
 
 - **profile / profile_id** — DIGIT's term for an agent and its stable id.
 - **thread / thread_id** — one conversation. New thread = fresh transcript.

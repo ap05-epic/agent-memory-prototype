@@ -1,6 +1,10 @@
 # Agent-Level Persistent Memory — Design Draft
 
-> Status: **draft for review**. Items marked ⏳ await confirmation against the real codebase (see `docs/recon/ROUND_1.md`). This draft is finalized after that recon round.
+> ⚠️ **HISTORICAL — the original pre-build design (early July 2026).** Kept as a record of the initial thinking. The ⏳ markers below were open questions at the time; all were since resolved by recon and the build. For the **current, accurate** picture use:
+> - `docs/SHOWCASE.md` — the finished design, team-facing
+> - `docs/TECHNICAL_DEEP_DIVE.md` — the full as-built detail
+>
+> One thing that changed during the build: injection did **not** go through `load_instructions`/`TurnService` as sketched in §4 — the harness had refactored instruction assembly into `sdk_adapter.build_agent`, so the memory block is passed as an optional `memory_block` kwarg to `build_agent` (fetched in `stream_turn`). The lifecycle and data model below are otherwise accurate.
 
 ## 1. Summary
 

@@ -5,15 +5,21 @@ Working repository for an **agent-level persistent memory** prototype on a multi
 ## Layout
 
 ```
-memory/                       # the drop-in package (complete, self-contained)
-  _digit.py                   #   THE seam file — only file that touches harness symbols;
-                              #   slots marked RECON:Qn, each with a working default
-  models.py store.py recall.py tool.py extraction.py
+memory/                       # the memory package (complete, self-contained)
+  __init__.py                 #   public exports
+  _digit.py                   #   THE seam file — the only file that touches harness symbols
+  models.py                   #   the 2 SQLAlchemy tables
+  store.py                    #   async CRUD + write hygiene (cap, fence-strip, denylist, dedup)
+  recall.py                   #   build_memory_block() -> (block, count)
+  tool.py                     #   the save_memory tool
+  extraction.py               #   post-turn extraction
 scripts/
   reset_dev_tables.py         # dev-only: drop+recreate ONLY the two memory tables
   verify_phase_a.py           # gate: prints PHASE_A: PASS|FAIL
   verify_phase_b.py           # gate: prints PHASE_B: PASS|PARTIAL|FAIL
   seed_demo.py                # demo fallback row
+profiles/
+  memory-demo/                # purpose-built demo agent (flag on, save_memory, gpt-5.4)
 docs/
   # ── Read these ────────────────────────────────────────────────
   SHOWCASE.md                 # ★ clean, digestible overview for the team lead (Subomi)
@@ -22,12 +28,13 @@ docs/
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
   INDICATORS.md               # the recall-indicator design + implementation
-  IMPLEMENTATION_BRIEF.md     # the build brief handed to the implementation agent
-  DESIGN_DRAFT.md             # early design doc
-  HOW_IT_WORKS.md             # earlier combined explainer (superseded by TECHNICAL_DEEP_DIVE)
-  recon/ROUND_1..4.md         # the recon question rounds
+  IMPLEMENTATION_BRIEF.md     # the build brief handed to the implementation agent (historical)
+  DESIGN_DRAFT.md             # the original pre-build design (historical)
+  recon/ROUND_1..4.md         # the recon question rounds (historical)
   research/REFERENCE_NOTES.md # source-level notes: Hermes Agent, OpenClaw, Letta, mem0
 ```
+
+> **Package location:** in this transfer repo the package lives at `memory/`; on the harness it is placed at `src/agent_factory/memory/` (the deep dive describes it there).
 
 ## Which doc do I want?
 
@@ -35,23 +42,23 @@ docs/
 - **Need to understand it fully / answer any question?** → `docs/TECHNICAL_DEEP_DIVE.md`.
 - **Running or watching the demo?** → `docs/DEMO_WALKTHROUGH.md` (what you see) + `docs/DEMO_RUNBOOK.md` (how to launch).
 
-## The loop
+## How it was built (historical)
 
-1. **Recon (unlimited agent):** *"Read docs/recon/ROUND_1.md and answer all questions against this repository, following the ANSWER FORMAT rules exactly, including the final GO/NO-GO table."* Screenshot the answer.
-2. **Wire & build (implementation agent):** give it the recon answer sheet + *"Read docs/IMPLEMENTATION_BRIEF.md and execute it task by task. The memory package in this repo is already written — your job is the ~6 wiring seams, the gates, and the final report in the specified format."*
-3. **Demo:** follow `docs/DEMO_RUNBOOK.md`.
+The prototype was built off-pod (this repo) and integrated on a remote dev pod via `git pull`, using two on-pod agents: an unlimited recon agent (GPT-5.4) that answered repo questions across four rounds (`docs/recon/`), and an implementation agent that applied the wiring from `docs/IMPLEMENTATION_BRIEF.md`. That work is **done** — see the status below.
 
 ## Status
 
-- [x] Reference research (4 systems, source-level) · design draft
-- [x] Recon rounds 1 + 2 answered — `_digit.py` wired, 22 adversarial findings folded in
-- [x] Implementation plan approved (joint session): 3 sdk_runner insertions + custom-tool wiring + profile yaml
-- [x] HOW_IT_WORKS.md explainer
-- [x] Recon round 3 answered → tool wiring pinned (custom tool at app.py registration + profile `function_tools` entry); brief finalized
-- [x] **Build code-complete on pod (Phase A + B):** all harness edits applied and verified, `PHASE_A: PASS` 7/7, `PHASE_B: PASS`, seam proven byte-identical when off, tool-plan scoping verified
-- [x] **LIVE ACCEPTANCE PASSED end-to-end (2026-07-07):** save→row→restart→new-thread recall (3-bullet format honored), user-b isolation, test-minimal flag-off (no writes), live extraction row (`verify_phase_b` check 6 wrote=1), chit-chat writes nothing. Root cause of the earlier 401 was a **stale pod `AZURE_OPENAI_BASE_URL` overriding `.env`** — cleared at launch, no code change (see DEMO_RUNBOOK launch fix)
+Done:
+- [x] Reference research (4 systems, source-level) · design
+- [x] Recon rounds 1–4 answered; wiring pinned (custom tool at `app.py` + profile `function_tools`)
+- [x] Implementation plan approved (joint session)
+- [x] **Build complete on pod (Phase A + B):** all harness edits applied, `PHASE_A: PASS` 7/7, `PHASE_B: PASS`, seam byte-identical when off, tool-plan scoping verified
+- [x] **Live acceptance passed end-to-end (2026-07-07):** save → row → restart → new-thread recall (3-bullet format honored) → user-b isolation → flag-off agent writes nothing → live extraction row → chit-chat writes nothing. (The earlier 401 was a stale pod `AZURE_OPENAI_BASE_URL` overriding `.env`, cleared at launch — no code change; see the DEMO_RUNBOOK launch fix.)
 - [x] Purpose-built demo agent `profiles/memory-demo/` (flag on, save_memory, gpt-5.4, tool events on — no hand-edits)
-- [ ] Rehearse DEMO_RUNBOOK → demo to Subomi. Optional: Karan sync (scoping/tenant/prod-DDL/retention)
-- [x] **Recall indicator LIVE (2026-07-07):** turn start emits a `run.status` "🧠 Recalled N memories" line (console renders it natively — no console changes). Verified on `memory-demo`. Details in `docs/INDICATORS.md`.
-- [ ] Optional: save-chip wording polish + learn indicator (both documented in `docs/INDICATORS.md`, neither needed)
-- [ ] Rehearsal (DEMO_RUNBOOK) + demo
+- [x] **Recall indicator live (2026-07-07):** turn start emits a `run.status` "🧠 Recalled N memories" line (console renders it natively — no console changes). Verified on `memory-demo`.
+- [x] Documentation: SHOWCASE, TECHNICAL_DEEP_DIVE, DEMO_WALKTHROUGH
+
+Open (all optional / follow-up):
+- [ ] Rehearse `DEMO_RUNBOOK.md`, then demo to Subomi
+- [ ] Karan sync (scoping / tenant / prod-DDL / retention)
+- [ ] Nice-to-haves: save-chip wording polish, learn indicator (both in `docs/INDICATORS.md`, neither needed)
