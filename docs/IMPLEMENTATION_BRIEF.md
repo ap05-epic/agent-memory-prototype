@@ -54,13 +54,14 @@ Do not modify the existing resolution logic in any other way.
         if _user is not None:
             from agent_factory.memory.recall import build_memory_block
 
-            _memory_block = await build_memory_block(
+            _memory_block, _mem_count = await build_memory_block(
                 profile.profile_id,
                 _user.user_id,
                 getattr(_user, "tenant_id", None) or "default",
             )
 ```
 - [ ] and pass `memory_block=_memory_block` in the `build_agent(...)` call.
+- [ ] `build_memory_block` returns a `(block, count)` tuple (the `count` feeds the optional recall indicator — see `docs/INDICATORS.md`). If you are NOT adding the indicator, you can ignore `_mem_count`; just keep the tuple-unpack so the call matches the current `recall.py`.
 (Lazy import is deliberate: flag-off agents never import the memory package. `stream_turn` is async — the `await` is legal there; `build_agent` stays sync and DB-free.)
 
 ## Task 4 — Wire the `save_memory` tool (pinned by recon round 3)

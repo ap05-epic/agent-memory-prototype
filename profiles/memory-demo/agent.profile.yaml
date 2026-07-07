@@ -49,31 +49,7 @@ observability:
 ui:
   stream_version: 1
   fallback_renderer: text
-  # --- Memory indicators (see docs/INDICATORS.md) -------------------------
-  # These declare the custom events the recall/extraction indicators emit.
-  # The console renders them via the named renderer. Renderer names below are
-  # placeholders pending recon (which renderers the console ships) — confirm
-  # before relying on them; the feature works without them (fallback_renderer).
-  stream_events:
-    - event: memory.recalled
-      description: Emitted at turn start when stored memories were injected.
-      renderer: status
-      payload_schema:
-        type: object
-        required:
-          - count
-        properties:
-          count:
-            type: integer
-          summary:
-            type: string
-    - event: memory.learned
-      description: Emitted after the turn when new memories were extracted.
-      renderer: status
-      payload_schema:
-        type: object
-        required:
-          - count
-        properties:
-          count:
-            type: integer
+  # Memory indicators ride on the harness's built-in run.status event, which the
+  # console already renders as a status line — no custom stream_events or
+  # renderer is needed (recon round 4 confirmed the console dispatches on event
+  # NAME, not on a renderer field). See docs/INDICATORS.md.

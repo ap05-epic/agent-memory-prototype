@@ -52,12 +52,16 @@ async def build_memory_block(
     profile_id: str,
     user_id: str,
     tenant_id: str = "default",
-) -> str | None:
-    """Fetch + render. Returns None on empty memory OR any error — recall may
-    never break a turn."""
+) -> tuple[str | None, int]:
+    """Fetch + render. Returns (block, count): block is the injected string (or
+    None when there is nothing/on error — recall may never break a turn), count
+    is how many memories it reflects (0 when None), for the recall indicator.
+    (count == len(entries) except in the rare case the char budget drops the
+    oldest entries — close enough for an indicator.)"""
     try:
         entries = await recent_entries(profile_id, user_id, tenant_id, INJECT_LIMIT)
-        return render_block(entries)
+        block = render_block(entries)
+        return (block, len(entries) if block else 0)
     except Exception:
         _digit.log.warning("memory recall failed scope=%s/%s", profile_id, user_id, exc_info=True)
-        return None
+        return (None, 0)
