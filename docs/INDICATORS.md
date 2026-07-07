@@ -28,7 +28,7 @@ Then one edit in `agent_factory/runtime/sdk_runner.py`, `stream_turn` — this *
 
 ```python
     _memory_block = None
-    if profile.memory.semantic_memory_enabled:
+    if agent is None and profile.memory.semantic_memory_enabled:   # keep the deployed guard as-is
         _user = getattr(effective_request, "user", None)
         if _user is not None:
             from agent_factory.memory.recall import build_memory_block
@@ -49,7 +49,7 @@ Then one edit in `agent_factory/runtime/sdk_runner.py`, `stream_turn` — this *
                 )
                 sequence += 1
 ```
-Then pass `memory_block=_memory_block` into `build_agent(...)` as before.
+Then pass `memory_block=_memory_block` into `build_agent(...)` as before. Only the *body* changes (tuple-unpack + the new `yield`); the surrounding `if agent is None and ...` guard and the `build_agent(..., memory_block=_memory_block)` call stay exactly as deployed.
 
 Notes:
 - `EventName.RUN_STATUS` and the `event(...)` helper are already imported in `sdk_runner.py` (the repaired-tool-call notice uses the same pattern). If `RUN_STATUS` isn't imported in scope, use the string form `event("run.status", ...)` — recon confirmed `event(name: EventName | str)` accepts a raw string.
