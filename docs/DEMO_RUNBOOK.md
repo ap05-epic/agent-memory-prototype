@@ -4,12 +4,19 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
 
 ## Pre-demo checklist (day before, and 30 min before)
 
-- [ ] **The backend can run a plain turn at all** (any agent, no memory involved) — if turns fail at the model boundary (Azure 401/deployment mismatch), fix the environment first; nothing memory-related can demo without it.
+- [ ] **LAUNCH FIX — the ambient env override (this is what caused the 401; the demo will not run without it).** The pod injects a stale `AZURE_OPENAI_BASE_URL` pointing at a *different* Azure resource (`...acaeus2deveis1aiml...`), and the harness's `load_environment()` keeps already-set shell vars over `.env` — so the app sent the good `.env` key to the wrong endpoint → 401. Clear the stale vars and export the `.env` values before launching, in default/Responses mode:
+  ```
+  unset AZURE_OPENAI_BASE_URL OPENAI_BASE_URL OPENAI_API_KEY OPENAI_AGENTS_API
+  export AZURE_OPENAI_API_KEY=<from .env>  AZURE_OPENAI_ENDPOINT=<from .env>
+  export AGENT_FACTORY_PROFILE_PATHS=<repo>/profiles
+  scripts/run-local-with-profiles.sh
+  ```
+  Verify a plain turn works before demoing. (Worth flagging to the platform team: remove the stale pod `AZURE_OPENAI_BASE_URL` so `.env` just works.)
 - [ ] `python3 scripts/verify_phase_a.py` prints `PHASE_A: PASS` on the pod.
 - [ ] Demo profiles staged (the run script reads repo `profiles/`, which is empty by default — the fixtures live elsewhere):
   `cp -r tests/fixtures/profiles/test-full profiles/` (Agent A) and `cp -r tests/fixtures/profiles/test-minimal profiles/` (Agent B, flag-off).
-- [ ] Agent A: `memory.semantic_memory_enabled: true` + `save_memory` under `tools: function_tools:`, in `profiles/test-full/agent.profile.yaml`. Agent B: untouched.
-- [ ] **Launch with the profile-path override** (the script's default points at other profile dirs): `export AGENT_FACTORY_PROFILE_PATHS=<repo>/profiles` then `scripts/run-local-with-profiles.sh`. Restart the same way after any yaml edit.
+- [ ] Agent A: `memory.semantic_memory_enabled: true` + `save_memory` under `tools: function_tools:`, and `model.default: gpt-5.4` (match `AZURE_OPENAI_MODEL`), in `profiles/test-full/agent.profile.yaml`. Agent B: untouched.
+- [ ] Restart after any yaml edit is the same launch block above (the `unset`/`export` must precede every launch — a bare `scripts/run-local-with-profiles.sh` will 401).
 - [ ] Console identity is `console-user` (from the x-user-email header fallback) — that's `<u1>` below. Confirm once in rehearsal by reading `user_id` off the beat-2 DB row.
 - [ ] DB query ready in a terminal tab:
   `SELECT content, category, source, thread_id, user_id, created_at FROM agent_memory_entries WHERE user_id='<u1>' ORDER BY created_at DESC LIMIT 5;`
@@ -36,7 +43,9 @@ The console renders the `save_memory` tool call (tool.started/completed). Say: *
 **Beat 4 — recall (the headline).** Same agent, **new thread** — say out loud: *"New conversation, new thread id — chat history hasn't followed us; this is the memory table."* Ask something neutral:
 > "Give me a quick status-update template."
 
-Answer arrives as three bullets, addressed by name.
+Answer arrives as exactly three bullets — the saved preference honored in a fresh thread after a restart. **This is the moment.**
+
+> Note on "by name": in the live run the reply opened with "Hey —" because the console user's id is literally `console-user`, not a real name. The **format** recall (three bullets) is the reliable, unmistakable proof — lead with that. If you want a real name in the greeting, send the turn with an `x-uname: <YourName>` header (or just explain the placeholder). Don't let the name be the headline; the format is.
 
 **Beat 5 — scoping (fast).**
 - Run the `user-b` curl in the terminal → plain answer, no bullets-by-name. *"Different user, same agent: her memory, not mine — scoped per user within the agent."*
@@ -47,10 +56,12 @@ Answer arrives as three bullets, addressed by name.
 **Beat 6 — close (compliance line).**
 > *"Forget is one UPDATE to `discarded_at` today; an agent-facing forget-tool, per-write audit events, and the phase-two skills loop hang off the same seams. Retrieval scales from load-recent to Postgres full-text search long before we need to discuss vector infrastructure."*
 
-**Optional beat (only if Phase B passed):** on Agent A, naturally:
-> "By the way, I work on the payments reconciliation team."
+**Optional beat (automatic capture).** Heads-up from the live run: **test-full is an eager agent** — its recall footer tells it to save durable details, so when you say "By the way, I work on the payments reconciliation team," it often calls `save_memory` *itself* (a `source=tool` row), and the background extractor then correctly finds nothing new to add (dedupe). That's the system working — but it means a clean, isolated `source=extraction` row is hard to force live in the console.
 
-**Let the turn fully finish and keep the tab open** (extraction is scheduled at turn completion — a mid-stream disconnect can skip it), wait ~15s, re-run the DB query → a `source='extraction'` row appeared with no tool call. *"Same pipeline, autonomous path — and the seam the phase-two skills reviewer will share."*
+The reliable way to show the autonomous path is the gate, run in a terminal:
+> `python3 scripts/verify_phase_b.py` → its live check makes a real model call and writes a `source=extraction` row in a throwaway scope → `PHASE_B: PASS`.
+
+Say: *"The explicit tool path and the autonomous post-turn extraction path are both proven — and extraction is the exact seam the phase-two skills reviewer will share."* If you'd rather keep the whole demo in the console, skip this beat — the headline never depends on it.
 
 ## Fallbacks (rehearsed, not improvised)
 

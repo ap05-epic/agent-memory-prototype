@@ -36,7 +36,7 @@ docs/
 - [x] Implementation plan approved (joint session): 3 sdk_runner insertions + custom-tool wiring + profile yaml
 - [x] HOW_IT_WORKS.md explainer
 - [x] Recon round 3 answered → tool wiring pinned (custom tool at app.py registration + profile `function_tools` entry); brief finalized
-- [x] **Build code-complete on pod (Phase A + B):** all harness edits applied and verified, `PHASE_A: PASS` 7/7, `PHASE_B: PASS`, seam proven byte-identical when off, tool-plan scoping verified, backend running with all edits
-- [ ] Live acceptance + demo — blocked ONLY by dev-env Azure OpenAI credentials/API-mode (Responses API 401s; pre-existing, would block any local turn) → platform-team question out
-- [ ] Env unblocked → run Task 6 acceptance → rehearse DEMO_RUNBOOK → demo
+- [x] **Build code-complete on pod (Phase A + B):** all harness edits applied and verified, `PHASE_A: PASS` 7/7, `PHASE_B: PASS`, seam proven byte-identical when off, tool-plan scoping verified
+- [x] **LIVE ACCEPTANCE PASSED end-to-end (2026-07-07):** save→row→restart→new-thread recall (3-bullet format honored), user-b isolation, test-minimal flag-off (no writes), live extraction row (`verify_phase_b` check 6 wrote=1), chit-chat writes nothing. Root cause of the earlier 401 was a **stale pod `AZURE_OPENAI_BASE_URL` overriding `.env`** — cleared at launch, no code change (see DEMO_RUNBOOK launch fix)
+- [ ] Rehearse DEMO_RUNBOOK → demo to Subomi. Optional: Karan sync (scoping/tenant/prod-DDL/retention)
 - [ ] Rehearsal (DEMO_RUNBOOK) + demo
