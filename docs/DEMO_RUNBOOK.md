@@ -13,9 +13,10 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
   ```
   Verify a plain turn works before demoing. (Worth flagging to the platform team: remove the stale pod `AZURE_OPENAI_BASE_URL` so `.env` just works.)
 - [ ] `python3 scripts/verify_phase_a.py` prints `PHASE_A: PASS` on the pod.
-- [ ] Demo profiles staged (the run script reads repo `profiles/`, which is empty by default — the fixtures live elsewhere):
-  `cp -r tests/fixtures/profiles/test-full profiles/` (Agent A) and `cp -r tests/fixtures/profiles/test-minimal profiles/` (Agent B, flag-off).
-- [ ] Agent A: `memory.semantic_memory_enabled: true` + `save_memory` under `tools: function_tools:`, and `model.default: gpt-5.4` (match `AZURE_OPENAI_MODEL`), in `profiles/test-full/agent.profile.yaml`. Agent B: untouched.
+- [ ] Demo profiles staged into the harness `profiles/` dir (the run script reads it):
+  - **Agent A = `memory-demo`** — the purpose-built demo agent from this transfer repo (`profiles/memory-demo/`); copy it in. It already has `semantic_memory_enabled: true`, `save_memory` in `function_tools`, `emit_tool_events: true`, and `model.default: gpt-5.4`. Nothing to edit.
+  - **Agent B (flag-off) = `test-minimal`** — `cp -r tests/fixtures/profiles/test-minimal profiles/`, untouched.
+  - (`test-full` also works as Agent A if you prefer, but needs its flag flipped, `save_memory` added, and model set to gpt-5.4 by hand — `memory-demo` is the no-edit option.)
 - [ ] Restart after any yaml edit is the same launch block above (the `unset`/`export` must precede every launch — a bare `scripts/run-local-with-profiles.sh` will 401).
 - [ ] Console identity is `console-user` (from the x-user-email header fallback) — that's `<u1>` below. Confirm once in rehearsal by reading `user_id` off the beat-2 DB row.
 - [ ] DB query ready in a terminal tab:

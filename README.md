@@ -38,5 +38,7 @@ docs/
 - [x] Recon round 3 answered → tool wiring pinned (custom tool at app.py registration + profile `function_tools` entry); brief finalized
 - [x] **Build code-complete on pod (Phase A + B):** all harness edits applied and verified, `PHASE_A: PASS` 7/7, `PHASE_B: PASS`, seam proven byte-identical when off, tool-plan scoping verified
 - [x] **LIVE ACCEPTANCE PASSED end-to-end (2026-07-07):** save→row→restart→new-thread recall (3-bullet format honored), user-b isolation, test-minimal flag-off (no writes), live extraction row (`verify_phase_b` check 6 wrote=1), chit-chat writes nothing. Root cause of the earlier 401 was a **stale pod `AZURE_OPENAI_BASE_URL` overriding `.env`** — cleared at launch, no code change (see DEMO_RUNBOOK launch fix)
+- [x] Purpose-built demo agent `profiles/memory-demo/` (flag on, save_memory, gpt-5.4, tool events on — no hand-edits)
 - [ ] Rehearse DEMO_RUNBOOK → demo to Subomi. Optional: Karan sync (scoping/tenant/prod-DDL/retention)
+- [ ] Optional enhancement: memory indicators (recall/learn chips) — design + brief in `docs/INDICATORS.md` (needs 2 recon answers, then ~16 lines)
 - [ ] Rehearsal (DEMO_RUNBOOK) + demo

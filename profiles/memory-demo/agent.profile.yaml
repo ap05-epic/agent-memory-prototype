@@ -1,0 +1,79 @@
+schema_version: 1
+profile_id: memory-demo
+name: Memory Demo Agent
+version: 0.1.0
+description: >-
+  Purpose-built agent for demonstrating agent-level persistent memory —
+  per-agent, per-user recall that survives new threads and restarts.
+instructions:
+  primary: instructions/primary.md
+model:
+  # gpt-5.4 matches AGENT_FACTORY / AZURE_OPENAI_MODEL on the dev endpoint.
+  # (test-full/test-minimal ship gpt-5.5, which 404s on this resource.)
+  default: gpt-5.4
+  provider: openai
+  reasoning_effort: medium
+  max_turns: 20
+runtime:
+  # Lightweight: no sandbox spin-up, no subagents — memory recall/extraction
+  # are independent of runtime mode, so keep the demo fast and predictable.
+  mode: shared
+  agent_mode: flat
+  allow_dynamic_subagents: false
+sandbox:
+  backend: none
+approvals:
+  # Frictionless demo. save_memory is never approval-gated anyway (it is
+  # registered without needs_approval), this just avoids any prompt.
+  default_policy: never
+tools:
+  builtin: []
+  function_tools:
+    # Custom tool registered in app.py; it resolves for this profile because
+    # its name is listed here (plan_tools -> _custom_tools).
+    - save_memory
+memory:
+  session_backend: sqlalchemy
+  compaction_enabled: true
+  compaction_mode: auto
+  # THE switch: turns on recall injection, the save_memory guard, and post-turn
+  # extraction for this agent. Off by default on every other profile.
+  semantic_memory_enabled: true
+observability:
+  tracing_enabled: true
+  trace_sensitive_data: false
+  # Makes the save_memory tool call render in the console transcript
+  # (tool.started / tool.completed) — the write indicator that already works.
+  emit_tool_events: true
+  emit_reasoning: false
+ui:
+  stream_version: 1
+  fallback_renderer: text
+  # --- Memory indicators (see docs/INDICATORS.md) -------------------------
+  # These declare the custom events the recall/extraction indicators emit.
+  # The console renders them via the named renderer. Renderer names below are
+  # placeholders pending recon (which renderers the console ships) — confirm
+  # before relying on them; the feature works without them (fallback_renderer).
+  stream_events:
+    - event: memory.recalled
+      description: Emitted at turn start when stored memories were injected.
+      renderer: status
+      payload_schema:
+        type: object
+        required:
+          - count
+        properties:
+          count:
+            type: integer
+          summary:
+            type: string
+    - event: memory.learned
+      description: Emitted after the turn when new memories were extracted.
+      renderer: status
+      payload_schema:
+        type: object
+        required:
+          - count
+        properties:
+          count:
+            type: integer
