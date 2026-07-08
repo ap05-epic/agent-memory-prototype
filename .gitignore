@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 .env
+
+# private meeting prep is kept outside this public repo
+MEETING_PREP.md

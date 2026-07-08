@@ -25,6 +25,7 @@ docs/
   SHOWCASE.md                 # ★ clean, digestible overview for the team lead (Subomi)
   TECHNICAL_DEEP_DIVE.md      # ★ know-everything explainer: every file, edit, decision
   DEMO_WALKTHROUGH.md         # ★ the demo narrated step-by-step, with what you see
+  DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
   INDICATORS.md               # the recall-indicator design + implementation
