@@ -100,6 +100,7 @@ flowchart LR
 3. **Retrieval ceiling:** are you comfortable with FTS-before-vectors, or is there appetite to bring in vector infra sooner?
 4. **Governance:** should autonomous memory writes be approval-gated in production from day one, or is opt-in-per-agent enough to start?
 5. **Who owns the DB path:** I'd like to sync with Karan on the production migration/DDL story and retention — does that routing make sense?
+6. **Local dev blocker (platform):** agents with the built-in namespaced tools (`artifact.*`/`workspace.*`/`subagent.*`) loop on tool calls locally against our Azure endpoint and never complete — likely the Azure/Responses-API tool-calling tension noted in `config.py`. Raw custom tools (like the memory tool) do complete. **What's the supported local config for tool-using agents?** (Details + isolation steps in `KNOWN_ISSUES.md`.)
 
 ---
 

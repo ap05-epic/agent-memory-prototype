@@ -28,6 +28,7 @@ docs/
   DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
+  KNOWN_ISSUES.md             # local tool-calling loop — diagnosis, isolation steps, workaround
   INDICATORS.md               # the recall-indicator design + implementation
   IMPLEMENTATION_BRIEF.md     # the build brief handed to the implementation agent (historical)
   DESIGN_DRAFT.md             # the original pre-build design (historical)
