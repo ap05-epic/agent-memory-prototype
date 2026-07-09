@@ -12,23 +12,20 @@
 
 **Why:** v1 recalls the newest ~20 entries. Once a user has many memories, "newest" ≠ "relevant." Retrieval should rank by *meaning against the current message*, with recency still respected.
 
-**Schema (additive):** `agent_memory_entries.embedding` — `VECTOR(dim)` when pgvector is available, else `BYTEA` (packed float32) — nullable. ⏳R5: dim + availability.
+**Schema (additive):** `agent_memory_entries.embedding` — `vector(1536)` when pgvector is available, else a packed-float32 `BYTEA` fallback (Letta's exact dialect-conditional pattern: the `pgvector.sqlalchemy.Vector` import happens only in the Postgres-with-extension branch) — nullable by design. Dimension 1536 = `text-embedding-3-small` native, deliberately under pgvector's 2000-dim HNSW limit so an index stays a pure drop-in later. ⏳R5 confirms which embedding deployment the resource actually serves.
 
-**Write path:** on every `add_entry`, embed the content (one embedder call). Failure ⇒ store with `embedding = NULL` and continue — **a write never blocks on the embedder**. (Optional backfill script embeds NULL rows later.)
+**Write path:** on every `add_entry`, embed the content — one call, ~5s timeout (measured p50 ~100–300ms, p90 ~500ms for hosted embedders). Failure ⇒ store with `embedding = NULL` and continue — **a write never blocks on the embedder**; a backfill script embeds `WHERE embedding IS NULL` rows in batches later.
 
-**Read path (recall):** embed the incoming user message, then blend:
-- **Relevant:** top-k (k≈12) live entries by cosine similarity within (profile, user, tenant);
-- **Recent:** the newest n (n≈6) regardless of similarity — recency floor;
-- union → dedup → cap ~20 → render the same `<user_memory>` block (chronological order for readability). Same char budget, same framing, same indicator (the 🧠 chip now reflects the blended count).
+**Read path (recall):** embed the incoming user message, over-fetch the scope's top ~50 live entries by cosine similarity, then **blend in app**: `score = 0.7·similarity + 0.3·exp(−age_days/30)` → take top ~20 → render the same `<user_memory>` block (chronological for readability). Same char budget, framing, and 🧠 indicator. (App-side blending is the industry-standard shape; SQL-side blended scoring is the documented optimization if over-fetch ever gets expensive.)
 
 **Three-rung degradation (the key design move):**
 | Rung | Mechanism | Needs |
 |---|---|---|
-| 1 | similarity in SQL: `ORDER BY embedding <=> :qvec LIMIT k` | pgvector extension |
-| 2 | **Python-side cosine** over the scope's live rows (small per-(agent,user) sets make this cheap) | embedder only |
+| 1 | similarity in SQL: `ORDER BY embedding <=> :qvec LIMIT 50` (exact scan within the b-tree-filtered scope) | pgvector extension |
+| 2 | **Python-side cosine** over the scope's live rows (same blend; small per-(agent,user) sets make this cheap) | embedder only |
 | 3 | v1 recency (`ORDER BY created_at DESC LIMIT 20`) | nothing |
 
-Rung 2 means **semantic retrieval ships even if the extension is blocked** — pgvector then becomes a scale optimization, not a dependency. Index: at our filtered, small-per-scope volumes, likely none needed initially; HNSW + `vector_cosine_ops` documented as the growth step (final call from research ⏳).
+Rung 2 means **semantic retrieval ships even if the extension is blocked** — pgvector then becomes a scale optimization, not a dependency. **No ANN index at our scale, deliberately**: with heavy per-(agent, user) filtering, an HNSW index *hurts* recall (pgvector applies WHERE after the index scan) — the b-tree on scope + exact distance sort is both correct and fast at thousands of rows per scope. This mirrors Letta in production (no vector index at all — b-trees + exact `cosine_distance`). Growth trigger documented: only when a single query must scan >50–100k rows, add `hnsw (embedding vector_cosine_ops)` + iterative scans (pgvector 0.8+).
 
 ## 2. Pillar 2 — Smart writes (update, don't duplicate)
 
@@ -55,7 +52,7 @@ Rung 2 means **semantic retrieval ships even if the extension is blocked** — p
 
 - `_digit.embed(texts: list[str]) -> list[list[float]] | None` — Azure OpenAI embeddings using the platform's own env config; `None` on any failure. ⏳R5: deployment name + dim → `AGENT_FACTORY_MEMORY_EMBED_MODEL` / `..._EMBED_DIM` env (defaulted from recon findings).
 - Decision model for smart writes: `AGENT_FACTORY_MEMORY_MODEL` (already supported) — pin to the mini model.
-- `scripts/upgrade_v2_columns.py` — idempotent `ALTER TABLE ADD COLUMN IF NOT EXISTS` for `embedding` + `superseded_by` (+ optional `CREATE EXTENSION vector` only if recon says allow-listed and we're told to).
+- `scripts/upgrade_v2_columns.py` — idempotent `ALTER TABLE ADD COLUMN IF NOT EXISTS` for `embedding` + `superseded_by`. Extension enablement is a separate, deliberate step: on Azure Flexible Server, `vector` must first be **allow-listed in the `azure.extensions` server parameter** (portal or `az postgres flexible-server parameter set` — no restart needed), then `CREATE EXTENSION vector;` once per database (pgvector 0.8.2 on current Azure PG). If the app user lacks the privilege (⏳R5), that's a one-line platform-team/Karan request — and rung 2 keeps semantic retrieval working meanwhile.
 - `scripts/verify_phase_c.py` — the v2 gate: embed roundtrip (SKIP cleanly if no embedder) · deterministic similarity retrieval (seeded fake embeddings → nearest-neighbor correctness) · supersede flow (add A, add A′ → old row discarded + linked) · consolidation trigger (threshold → doc written, entries folded, injection uses doc) · degradation (no embedder ⇒ rung-3 recency still passes).
 
 ## 5. Governance notes (delta over v1)
