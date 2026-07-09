@@ -29,6 +29,8 @@ Audience: team lead review. ~5 minutes. Everything on the product surface (conso
   ```
 - [ ] Backend restart = kill uvicorn, rerun `scripts/run-local-with-profiles.sh`. Console keeps its conversation in localStorage — refresh the page after restart.
 - [ ] Fallback seed ready (don't run unless needed): `python3 scripts/seed_demo.py --profile <agentA> --user <u1>`
+- [ ] **v2 additions to the launch block** (semantic memory): export the four memory vars (`AGENT_FACTORY_MEMORY_PGVECTOR=1`, `AGENT_FACTORY_MEMORY_EMBED_MODEL=text-embedding-3-large`, `AGENT_FACTORY_MEMORY_EMBED_DIM=1536`, `AGENT_FACTORY_MEMORY_MODEL=gpt-5.4-mini`) **and `export PYTHONPATH=<harness>/src`**, and log the server with `> /tmp/demo.log 2>&1`.
+- [ ] **Identity check before demoing (hard-won lesson):** kill stale backends first (`pkill -f "uvicorn agent_factory.api.app"`), launch ONE, then `grep 'agent_memory seam loaded build=' /tmp/demo.log` must show the current build and `ss -ltnp '( sport = :8080 )'` must show YOUR process — otherwise you're demoing old code.
 - [ ] **Rehearse the full script once.** Reset between rehearsals: `python3 scripts/reset_dev_tables.py --yes`
 
 ## The script
@@ -64,6 +66,17 @@ The reliable way to show the autonomous path is the gate, run in a terminal:
 > `python3 scripts/verify_phase_b.py` → its live check makes a real model call and writes a `source=extraction` row in a throwaway scope → `PHASE_B: PASS`.
 
 Say: *"The explicit tool path and the autonomous post-turn extraction path are both proven — and extraction is the exact seam the phase-two skills reviewer will share."* If you'd rather keep the whole demo in the console, skip this beat — the headline never depends on it.
+
+## v2 beats (semantic memory — the upgrade material)
+
+**Beat 7 — relevance, not recency.** Seed three different-topic memories across turns (bullets preference · payments team · "prefers Python over Java examples"). New thread, ask a **topical** question: *"What language should this example use?"* → 🧠 indicator fires and the answer reflects **Python** — the *relevant* memory, not the newest. *Say: "Recall is ranked by meaning against what you just asked — embeddings in our existing Postgres via pgvector, no new infrastructure."*
+
+**Beat 8 — change your mind (the supersede chain).** Say: *"Remember: actually I want five bullet points now, not three."* → the tool chip returns **"Saved — this replaces an older memory on the same topic."** Run the DB query with `superseded_by`:
+```sql
+SELECT content, discarded_at IS NOT NULL AS retired, superseded_by
+FROM agent_memory_entries WHERE user_id='<u1>' ORDER BY created_at;
+```
+→ the old three-bullets row shows `retired=true` **linked to its replacement**. New thread, neutral ask → **five** bullets. *Say: "Preferences change; the store updates instead of accumulating contradictions — and nothing is deleted: the chain IS the audit trail. A small model adjudicates only when facts collide."*
 
 ## Fallbacks (rehearsed, not improvised)
 

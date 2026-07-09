@@ -113,6 +113,14 @@ Let the turn finish. Behind the scenes, a background step reads the exchange and
 
 ---
 
+## Acts 8–9 — the v2 upgrade (semantic memory, live-verified)
+
+**Act 8 — relevance beats recency.** With several different-topic memories stored, ask a topical question ("What language should this example use?"). The 🧠 indicator fires and the answer uses the *relevant* memory (Python) even though other memories are newer. One line: *"recall is ranked by meaning against your current message — pgvector in our existing Postgres, zero new infrastructure."*
+
+**Act 9 — change your mind.** Say *"Remember: actually I want five bullet points now, not three."* The tool chip answers **"Saved — this replaces an older memory on the same topic."** The database shows the old row retired **with a link to its replacement** (`superseded_by`), and a fresh thread answers in five bullets. One line: *"updates instead of contradictions, and nothing is ever deleted — the supersede chain is a readable audit trail of how a preference evolved. A small model adjudicates only when facts collide (calibrated from live telemetry, not guesses)."*
+
+*(Both acts verified live in the acceptance run: gate line `top_sim=0.309 tier=decide action=supersede`, `superseded=1` in metrics, five-bullet recall confirmed.)*
+
 ## The 30-second version (if you have no time)
 
 1. Teach `memory-demo` a preference → visible save.
