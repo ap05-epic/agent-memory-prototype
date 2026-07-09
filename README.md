@@ -5,25 +5,30 @@ Working repository for an **agent-level persistent memory** prototype on a multi
 ## Layout
 
 ```
-memory/                       # the memory package (complete, self-contained)
+memory/                       # the memory package (complete, self-contained, v1+v2)
   __init__.py                 #   public exports
-  _digit.py                   #   THE seam file — the only file that touches harness symbols
-  models.py                   #   the 2 SQLAlchemy tables
-  store.py                    #   async CRUD + write hygiene (cap, fence-strip, denylist, dedup)
-  recall.py                   #   build_memory_block() -> (block, count)
-  tool.py                     #   the save_memory tool
-  extraction.py               #   post-turn extraction
+  _digit.py                   #   THE seam file — harness symbols, embed(), llm_complete(), BUILD marker
+  models.py                   #   the 2 SQLAlchemy tables (+ v2 columns: embedding, superseded_by, observed_at)
+  semantic.py                 #   v2 pure logic: cosine, relevance+recency blend, supersede decision, thresholds
+  store.py                    #   async CRUD + write hygiene + the tiered smart-write gate + forget_user/metrics
+  recall.py                   #   build_memory_block(query_text) -> (block, count), 3-rung degradation
+  tool.py                     #   the save_memory tool (full gate incl. decider)
+  extraction.py               #   post-turn extraction + the tier-3 decision call
 scripts/
-  reset_dev_tables.py         # dev-only: drop+recreate ONLY the two memory tables
+  reset_dev_tables.py         # dev-only: drop+recreate ONLY the two memory tables (destructive)
+  upgrade_v2_columns.py       # additive v2 schema upgrade (live-table-safe)
+  backfill_embeddings.py      # embed rows written while the embedder was down
   verify_phase_a.py           # gate: prints PHASE_A: PASS|FAIL
   verify_phase_b.py           # gate: prints PHASE_B: PASS|PARTIAL|FAIL
+  verify_phase_c.py           # gate (v2): 12 deterministic checks, prints PHASE_C: PASS|FAIL
   seed_demo.py                # demo fallback row
 profiles/
   memory-demo/                # purpose-built demo agent (flag on, save_memory, gpt-5.4)
 docs/
   # ── Read these ────────────────────────────────────────────────
-  SHOWCASE.md                 # ★ clean, digestible overview for the team lead (Subomi)
-  TECHNICAL_DEEP_DIVE.md      # ★ know-everything explainer: every file, edit, decision
+  SHOWCASE.md                 # ★ the team-lead walkthrough — simple, complete, v1+v2
+  UNDERSTANDING_THE_SYSTEM.md # ★ YOUR ground-up map: concepts, message trace, the story, Q&A
+  TECHNICAL_DEEP_DIVE.md      # ★ engineering reference: every file, edit, decision (v1 + v2 addendum)
   DEMO_WALKTHROUGH.md         # ★ the demo narrated step-by-step, with what you see
   DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
   # ── Operational / build history ───────────────────────────────

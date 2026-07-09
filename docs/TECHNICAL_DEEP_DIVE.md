@@ -1,6 +1,8 @@
 # Agent Memory — Technical Deep Dive
 
 > Audience: **you** (and any engineer who inherits this). This is the "know exactly what we did and how" document. It covers every file, every harness edit, every design decision, and why. If you can read this, you can answer any question about the system.
+>
+> **Covers v1 (core memory) AND v2 (semantic retrieval + supersede — live-accepted).** Sections 1–14 describe the core; the **v2 addendum** (after §8) describes what changed on top. For the friendlier ground-up version of all of this, read `UNDERSTANDING_THE_SYSTEM.md`; for v2 design rationale, `DESIGN_V2.md`.
 
 ---
 
@@ -65,6 +67,8 @@ Two tables, both plain SQLAlchemy models picked up by the harness's `Base.metada
 
 Index: `(profile_id, user_id, created_at)` — matches the only query v1 runs.
 
+**v2 columns (nullable, added by `scripts/upgrade_v2_columns.py`, live-table-safe):** `embedding` — `vector(1536)` (pgvector) holding the content's meaning-vector, embedded at write with a NULL-on-failure + backfill pattern; `superseded_by` — id of the replacing entry when a fact was updated (the chain is the audit trail); `observed_at` — event time (when the fact was true) vs `created_at` (when stored), used by the older-never-supersedes-newer guard.
+
 ### `agent_memory_user_models` — reserved, ships empty
 
 Same scoping columns + `content` text + a `version` integer (optimistic locking) + `UNIQUE(profile_id, user_id, tenant_id)`. This is the future home of a synthesized "who is this user" document (Hermes' `USER.md`, Letta's core memory block). We ship the table now because adding tables later without a migration framework is painful; the `version` column is there so future rewrites can't silently clobber each other.
@@ -73,7 +77,7 @@ Same scoping columns + `content` text + a `version` integer (optimistic locking)
 
 ## 4. The memory package: `src/agent_factory/memory/`
 
-Self-contained. Every harness-specific symbol is imported in exactly one file (`_digit.py`), so the rest of the package is pure and portable. Seven files:
+Self-contained. Every harness-specific symbol is imported in exactly one file (`_digit.py`), so the rest of the package is pure and portable. Eight files (the v1 seven below plus v2's `semantic.py` — pure similarity/blend/decision logic, described in the v2 addendum):
 
 ### `_digit.py` — the seam (the only file that touches the harness)
 - **`Base`** — imported from `agent_factory.persistence.models` (falls back to a local `declarative_base()` when run standalone, e.g. our off-pod tests).
@@ -204,6 +208,18 @@ Recon found the console renders events by **name**, not by any renderer field �
 
 ---
 
+## v2 addendum — semantic retrieval & supersede (as built, live-accepted)
+
+**New module `semantic.py`** holds the pure logic: float32 vector pack/unpack (for the no-pgvector fallback), cosine similarity, the recall blend `0.7·similarity + 0.3·exp(−age_days/30)` with a 0.35 relevance floor, the supersede decision prompt (candidates shown as integers 0..n, outputs range-validated), the `may_supersede` event-time guard, and the thresholds with their calibration history in comments.
+
+**Recall became query-aware:** `build_memory_block(profile, user, tenant, query_text)` embeds the incoming message and returns the blended top ~20 (a recency floor of the newest few is always included). Three-rung degradation: pgvector SQL ordering → Python-side cosine over the scope's rows → v1 recency. **No vector index, deliberately** — queries filter hard by (agent, user) first, and pgvector applies WHERE *after* an index scan, so an HNSW index would reduce recall while buying nothing at hundreds-of-rows-per-scope (Letta ships the same way). The harness passes `query_text=str(effective_request.input)` at the existing recall call site — the only additional harness edit v2 needed.
+
+**Writes gained the tiered gate** (`store.smart_add_entry`): exact-text dedup (free) → richer-text fast-path at ≥0.95 → **decision model for anything ≥ 0.30 similarity when a decider is available** (tool saves and extraction both pass one) → plain ADD below, and plain ADD on *any* failure (embedder down, timeout, malformed output — a wrong ADD is harmless on an append-only table). SUPERSEDE applies in one transaction: insert new, retire old with `superseded_by`. The **0.30 floor is measured, not chosen**: gate telemetry showed a real "three→five bullets" contradiction scores 0.309 on `text-embedding-3-large@1536` (both the hand-picked 0.70 band and the research-derived 0.50 floor missed it — the twice-proven lesson that similarity thresholds never transfer between embedders).
+
+**The embedder seam:** `_digit.embed(texts)` — Azure OpenAI `text-embedding-3-large` with `dimensions=1536` (server-side truncation; 3-small isn't deployed on our resource), 5s timeout, returns None on any failure including dimension mismatch (never poisons the column). It self-bridges the Azure env vars so standalone scripts work like the app does.
+
+**Operational hardening born from the build:** the package logs a **BUILD marker** at startup and attaches its own log handler (uvicorn's config swallows app loggers — the root cause of an entire phantom-debugging arc), and every write emits one content-free telemetry line (`memory gate: top_sim=… tier=… action=…`). Env: `AGENT_FACTORY_MEMORY_PGVECTOR=1`, `..._EMBED_MODEL=text-embedding-3-large`, `..._EMBED_DIM=1536`, `..._MEMORY_MODEL=gpt-5.4-mini`, plus `PYTHONPATH=<harness>/src` in the launch block. New scripts: `upgrade_v2_columns.py` (additive ALTER), `backfill_embeddings.py`, `verify_phase_c.py` (12 deterministic checks with a stub embedder + a live-embedder check). New store functions: `forget_user` (one-call scope cascade) and `scope_metrics` (live/discarded/superseded/embedded counts).
+
 ## 9. Extraction's LLM call — why it can't loop
 
 Extraction needs an LLM, but the harness has no raw internal client. The idiomatic option is a bare SDK `Agent` + `Runner.run`. The risk: if that re-entered `stream_turn`, extraction would trigger extraction forever. Recon confirmed the harness's own subagent executor uses exactly this path (`Runner.run`, explicit model) and it does **not** re-enter the post-turn seam or write thread/run/event rows. We mirror it, with an explicit model from `get_model_name()` (dev: `gpt-5.4`). If a client disconnects mid-stream, the `RESPONSE_COMPLETED` block may not run, so extraction can be skipped for that turn — an accepted prototype limitation.
@@ -247,7 +263,7 @@ Full source-level notes: `docs/research/REFERENCE_NOTES.md`.
 | Deferred | Why | Path |
 |---|---|---|
 | Cross-agent / user-wide memory | explicitly deferred in the planning meeting | Letta-style shared blocks or a sentinel scope — a decision, not a default |
-| Vector / pgvector retrieval | greenfield infra + governance; unneeded at this scale | ladder: load-recent → `search_memory` tool on Postgres FTS → pgvector only if FTS falls short |
+| ~~Vector / pgvector retrieval~~ **BUILT in v2** | (the extension turned out to be already installed) | see the v2 addendum — relevance-blended recall, live-accepted |
 | User-model synthesis | the one genuinely complex piece (rewrites, conflicts) | table + `version` column already ship; size-triggered synthesis in the same extraction call |
 | Skills self-improvement loop | phase 2; **note: Hermes' famous skills loop is not actually in its current code**, so this is design-from-scratch | the post-turn seam is built to be shared with a skills reviewer |
 | Audit events for writes | same seam, phase 2 | one `event(...)` emission next to `schedule_extraction` |

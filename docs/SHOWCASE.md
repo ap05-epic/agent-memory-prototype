@@ -1,99 +1,96 @@
-# Agent-Level Persistent Memory for DIGIT
-### A working prototype — built, wired into the harness, and verified live
+# Agent Memory for DIGIT
+### Built, working, and verified live — a walkthrough
 
 ---
 
-## In one line
+## One line
 
-DIGIT agents can now **remember a user's preferences and context across conversations** — stored in our existing Postgres, opt-in per agent, and demonstrably working end to end on the real backend.
-
----
-
-## The problem
-
-DIGIT persists chat history, but only *per thread*. Open a new conversation and the agent starts from zero — it can't carry a user's stated preferences, role, or working context forward. The `semantic_memory_enabled` profile flag existed but was inert. This prototype is the implementation behind that flag.
-
-**Why it's not "just chat history":** history is the transcript of one thread. Memory is a small, curated set of facts that is re-injected into *every new* conversation. The demo proves it by recalling in a brand-new thread, after a restart.
+DIGIT agents can now **remember each user across conversations** — what you told them, how you like to work — stored in our existing Postgres, opt-in per agent, and smart about it: recall is ranked by *meaning*, and changed preferences *replace* old ones instead of piling up contradictions.
 
 ---
 
-## What it does
+## The problem it solves
+
+DIGIT stores chat history, but history belongs to one thread — open a new conversation and the agent knows nothing about you. The `semantic_memory_enabled` flag existed on every agent profile but was wired to nothing. This project is the system behind that flag.
+
+**History ≠ memory:** history is the transcript of one conversation. Memory is a small set of durable facts about a user that follows them into *every new* conversation with that agent.
+
+---
+
+## What it does — as a user experiences it
+
+1. **Teach it:** "Remember: I always want answers as three bullet points." → the agent visibly calls its `save_memory` tool; a row lands in the database.
+2. **It survives:** restart the backend, open a **brand-new conversation**, ask anything → a small **🧠 Recalled 1 saved memory** indicator appears, and the answer comes back in three bullets.
+3. **It's relevant, not just recent:** with several memories stored (formatting, team, "prefers Python examples"), ask "what language should this example use?" → it recalls the *Python* memory because it matches what you asked — not whatever was newest.
+4. **Change your mind:** "Actually, five bullet points now, not three." → the tool answers *"Saved — this replaces an older memory on the same topic."* The old memory is retired **with a link to its replacement**, and new conversations follow the new preference.
+5. **It's contained:** a different user gets nothing. A different agent gets nothing. An agent without the flag can neither read nor write memory — its behavior is byte-for-byte unchanged.
+6. **It also learns quietly:** mention in passing that you work on payments reconciliation, and a background step captures it after the turn — no "remember" needed. (The visible tool and this automatic path are separate, and both are proven.)
+
+Every step above was **verified live on the real backend** against the real Azure Postgres.
+
+---
+
+## How it works — five pieces
 
 ```mermaid
-flowchart LR
-    U1[Session 1<br/>'Remember: I want answers<br/>as three bullets'] --> S[save_memory<br/>writes a row]
-    S --> DB[(Postgres<br/>agent_memory_entries)]
-    DB --> R[Session 2 - NEW thread,<br/>after a restart]
-    R --> A[Agent answers in<br/>three bullets automatically]
+flowchart TD
+    A[User message] --> B{agent's memory flag on?}
+    B -- no --> Z[normal turn - memory code never loads]
+    B -- yes --> C[RECALL: rank this user's memories by relevance to the message + recency, inject the top ones]
+    C --> D[🧠 indicator shows in the console]
+    D --> E[Agent answers; may call save_memory]
+    E --> F[response streams to the user]
+    F --> G[EXTRACT: background step captures durable facts, updates instead of duplicating]
 ```
 
-- The user tells an agent something durable → the agent saves it (a visible, auditable tool call).
-- In any later conversation, that agent recalls it and tailors its response — shown live with a **🧠 Recalled N memories** indicator.
-- **Scoped:** a different user, or a different agent, sees nothing. An agent with the flag off can't read or write memory at all.
+1. **Two tables in the existing Postgres.** The main one is an append-only log of memories — each row: the fact, which agent, which user, where it came from, timestamps. No new infrastructure anywhere.
+2. **Recall.** At the start of a turn, the user's message is embedded (turned into a vector — a numeric representation of meaning) and memories are ranked by **relevance to the message blended with recency**, using **pgvector** — a vector extension already installed in our Postgres. The top memories are injected into the agent's instructions as clearly-labeled background data.
+3. **The `save_memory` tool.** The agent's deliberate way to store something — a visible, auditable tool call. Every write passes a hygiene funnel: length cap, a filter that rejects credential/account-number-shaped content, and duplicate detection.
+4. **Smart writes.** When a new fact collides with an old one, a small model decides: same thing (skip), new information (add), or **changed information — supersede**: the new row goes in, the old row is retired with a `superseded_by` link. Nothing is ever deleted, so the chain doubles as an audit trail of how a preference evolved.
+5. **The switch.** All of it is gated by the per-agent `semantic_memory_enabled` flag, checked at every entry point. Off = the memory code isn't even imported.
 
 ---
 
-## How it works (the shape)
+## Design choices worth knowing (and defending)
 
-We adapted the lifecycle from **Hermes Agent** (the open-source reference the team approved) and swapped its on-disk files for our Postgres. Four beats, every one gated by the per-agent flag:
-
-| Beat | When | What happens |
-|---|---|---|
-| **Recall** | turn start | load the user's memories, inject into the agent's instructions, show the 🧠 indicator |
-| **Save** | mid-turn | the agent calls a `save_memory` tool to store something (visible chip) |
-| **Extract** | after the turn | a background step captures durable facts automatically |
-| *(gate)* | always | flag off ⇒ none of it runs, the code doesn't even load |
-
-**Footprint on the harness:** one new self-contained package plus ~5 small, flag-gated edits (instruction assembly, the post-turn seam, and one tool registration). Nothing changes for agents that don't opt in.
-
-**Storage:** two new tables in the existing Azure Postgres. No new infrastructure. No vector database (deliberately — see roadmap).
+- **Postgres + pgvector, no new infrastructure.** The extension was already installed on our server; memory adds two tables and columns, not systems.
+- **Everything degrades safely.** Embedder down → recall falls back to recent-first. Decision model fails → the write becomes a plain add. Database hiccup → the turn proceeds without memory. **There is no code path where memory breaks a turn.**
+- **Memory is subordinate to the user.** Recalled text is framed as background data — never instructions — and if it conflicts with what the user says now, the user wins. (A deliberate difference from single-user assistants.)
+- **Calibrated from evidence, not guesses.** The write-gate emits one content-free telemetry line per write; the decision threshold was tuned from measured live values (a real changed-preference scored 0.309 similarity on our embedder — literature-derived thresholds would have missed it, and initially did).
+- **Grounded in prior art.** The lifecycle follows Hermes Agent; the Postgres-rows substrate matches Letta; the extraction and update rules adapt mem0; the supersede-with-history pattern is Zep's enterprise approach. Sourced survey: `research/INDUSTRY_PRACTICES.md`.
 
 ---
 
-## Design decisions, and why
+## Security & governance posture
 
-- **Scoped per (agent, user).** Each agent remembers each user separately — matching the personalization goal. Cross-agent / user-wide memory was deferred as a bigger architectural question (per the planning meeting).
-- **Opt-in per agent** via the existing flag — zero risk to agents that don't want it.
-- **Postgres, not files or vectors.** Reuses what we have; the profile directory is ephemeral, the database is durable — which is exactly why memory belongs in the DB. Semantic/vector retrieval is a labeled future step, not on the critical path.
-- **Memory is subordinate to live input.** Recalled memory is framed as background data the agent may use, never as instructions to obey — important on a shared, multi-user platform.
-- **Grounded in prior art.** The design borrows deliberately from four production systems (Hermes, Letta, mem0, OpenClaw) rather than being invented — so the architecture is a known-good pattern.
-
----
-
-## Security & governance posture (built in, not bolted on)
-
-- **Prompt-injection aware:** recalled memory is framed as untrusted data; the block's delimiter is stripped from stored content; entries are length-capped.
-- **No sensitive data:** the capture step is instructed to skip credentials/secrets, a regex denylist backstops it, and **memory content is never written to logs**.
-- **Right to forget:** deletion is a single soft-delete UPDATE today; nothing is ever hard-erased, so the log is also an audit trail.
-- **Approval-ready:** autonomous writes can be routed through DIGIT's existing tool-approval flow with one switch if governance wants human sign-off.
+- **Prompt-injection aware:** recalled memory is labeled as untrusted stored data; the block delimiter is stripped from content at write; entries are length-capped.
+- **No sensitive data:** the capture step is instructed to skip credentials/secrets and sensitive personal data; a regex denylist backstops it; **memory content never appears in logs** (ids, counts, similarity scores only).
+- **Right to forget:** deleting is a single soft-delete update today, plus a one-call "forget user" cascade. Industry-standard two-stage deletion (hide now, hard-purge on a policy schedule) is designed and proposed — the retention window is governance's call.
+- **Auditability:** append-only + soft-delete + provenance (source, thread) + supersede chains = the audit trail is structural, not bolted on.
+- **Approval-ready:** autonomous writes can route through DIGIT's existing tool-approval flow with one switch if desired.
 
 ---
 
-## Status: done and proven
+## Status
 
 | | |
 |---|---|
-| Code | ✅ package + harness wiring complete, on a feature branch |
-| Automated checks | ✅ `PHASE_A: PASS` (7/7), `PHASE_B: PASS` |
-| **Live acceptance** | ✅ save → restart → new-thread recall → scoping → flag-off → auto-extraction, all passing on the real backend |
-| Recall indicator | ✅ verified live |
-| Demo | ✅ rehearsable runbook ready |
-
-One environmental note surfaced along the way (a stale pod env var overriding `.env` on the Azure endpoint) — diagnosed and fixed with no code change; worth flagging to the platform team.
+| Core memory (save, recall, extraction, indicator, gating) | ✅ built, live-verified |
+| Semantic retrieval (pgvector, relevance+recency) | ✅ built, live-verified |
+| Update-instead-of-duplicate (supersede chains) | ✅ built, live-verified |
+| Automated gates | ✅ 3 suites, all passing on the pod |
+| Demo | ✅ rehearsable runbook, 9 beats |
 
 ---
 
-## Roadmap — what's next (all designed-for, none built yet)
+## What's deliberately next (designed, not yet built)
 
-1. **User-model synthesis** — condense many entries into a compact "who is this user" profile (the reserved second table + `version` column already exist for it).
-2. **Search-first retrieval** — when memory outgrows the injection budget, add a `search_memory` tool over Postgres full-text search — still no new infrastructure. Vectors only if FTS proves insufficient.
-3. **Phase 2: the self-improving skills loop** — the post-turn seam we built is designed to be shared with a skills reviewer that writes/refines skills from the same turn. (Worth calibrating: Hermes' famous skills loop is *not* actually in its current code, so this would be designed fresh.)
-4. **Governance items** — production DDL/migration path, retention policy, per-write audit events, an agent-facing forget tool. Each is a small, known addition.
+1. **Consolidation** — periodically fold many small memories into a compact per-user profile (the second table has been reserved for this from day one). Keeps injected context bounded forever.
+2. **Retention policy** — the two-stage deletion proposal (soft-delete now → scheduled hard purge) needs a governance decision on the window; a metrics query ships for a data-driven discussion.
+3. **Phase 2: the self-improving skills loop** — the post-turn seam was built to be shared by a future reviewer that authors/refines skills from the same turns. Open design questions: durable skill storage and approval-gating (a skill changes behavior for all of an agent's users).
 
 ---
 
-## Want more depth?
+## Where the depth lives
 
-- **`docs/TECHNICAL_DEEP_DIVE.md`** — every file, every edit, every decision, in full.
-- **`docs/DEMO_WALKTHROUGH.md`** — the demo, step by step, with what you see at each moment.
-- **`docs/research/REFERENCE_NOTES.md`** — source-level notes on the four systems we learned from.
+- `DESIGN_V2.md` — every v2 decision and why · `TECHNICAL_DEEP_DIVE.md` — the full as-built reference · `research/INDUSTRY_PRACTICES.md` — the sourced industry survey · `DEMO_WALKTHROUGH.md` — the demo, narrated.
