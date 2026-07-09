@@ -15,6 +15,12 @@ from dataclasses import dataclass
 
 log = logging.getLogger("agent_memory")
 
+# Build marker: lets any process PROVE which package code it actually loaded
+# (grep the server log for "agent_memory seam loaded", or read BUILD directly).
+# Bump on every transfer-repo change that must reach the pod.
+BUILD = "2026-07-08.4-decide-floor"
+log.info("agent_memory seam loaded build=%s", BUILD)
+
 WIRING = {
     "base": False,      # set below: True when the harness Base imported
     "session": True,    # deliberate: own engine from AGENT_FACTORY_DATABASE_URL (see Q8 note)
