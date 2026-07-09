@@ -16,7 +16,7 @@
 
 **Write path:** on every `add_entry`, embed the content — one call, ~5s timeout (measured p50 ~100–300ms, p90 ~500ms for hosted embedders). Failure ⇒ store with `embedding = NULL` and continue — **a write never blocks on the embedder**; a backfill script embeds `WHERE embedding IS NULL` rows in batches later.
 
-**Read path (recall):** embed the incoming user message, over-fetch the scope's top ~50 live entries by cosine similarity, then **blend in app**: `score = 0.7·similarity + 0.3·exp(−age_days/30)` → take top ~20 → render the same `<user_memory>` block (chronological for readability). Same char budget, framing, and 🧠 indicator. (App-side blending is the industry-standard shape; SQL-side blended scoring is the documented optimization if over-fetch ever gets expensive.)
+**Read path (recall):** embed the incoming user message, over-fetch the scope's top ~50 live entries by cosine similarity, then **blend in app**: `score = 0.7·similarity + 0.3·exp(−age_days/30)`, with a **minimum-similarity floor (~0.35)** so weak matches aren't injected just for being top-k (OpenClaw gates injection the same way; a recency floor of the newest few entries stays exempt) → take top ~20 → render the same `<user_memory>` block (chronological for readability). Same char budget, framing, and 🧠 indicator. (App-side blending is the industry-standard shape; SQL-side blended scoring is the documented optimization if over-fetch ever gets expensive.)
 
 **Three-rung degradation (the key design move):**
 | Rung | Mechanism | Needs |
@@ -31,18 +31,23 @@ Rung 2 means **semantic retrieval ships even if the extension is blocked** — p
 
 **Why (Subomi's example):** preferences change over time; the store should not accumulate contradictions.
 
-**Mechanism — supersede, never overwrite (audit-preserving):**
-- New nullable column: `superseded_by` (uuid of the replacing entry).
-- On write, fetch the most similar live entries (rung 1/2 similarity; exact-match dedup remains the rung-3 fallback):
-  - similarity ≥ **T_dup** (≈0.95 ⏳research) → same fact → drop as duplicate (v1 behavior, now semantic);
-  - **T_band** (≈0.75–0.95 ⏳research) → ambiguous → one small-model call (mem0's ADD/UPDATE/NONE decision, `gpt-5.4-mini`): on UPDATE → insert the new row, then `discarded_at = now(), superseded_by = <new id>` on the old one;
-  - below the band → plain ADD.
-- A "I no longer …" contradiction resolves as UPDATE-to-the-new-state or discard-with-nothing-added — **nothing is ever hard-deleted**, and the `superseded_by` chain is a readable audit trail of how a fact evolved (the Zep-style temporal-invalidation pattern, on our append-only table).
-- Applies to both write paths; the extraction path gets it first (it's background, latency-free), the tool path uses the cheap threshold checks inline.
+**Mechanism — supersede, never overwrite (audit-preserving; defaults finalized from the industry research):**
+- New nullable columns: `superseded_by` (uuid of the replacing entry) and `observed_at` (event time — when the fact was true, resolved to an absolute date by the extractor; distinct from `created_at`, when we stored it).
+- **Tiered gate on write** — the LLM is the last resort, not the first:
+  1. normalized-text match → drop (free; v1 behavior);
+  2. cosine ≥ **0.95** → same fact → drop unless the new text is strictly richer (mem0's fast path);
+  3. **0.70–0.95** → the ambiguity band where contradictions live → one small-model call (`gpt-5.4-mini`): candidates shown as **integers 0..n** (never ids; outputs range-validated — mem0 and Graphiti converged on this independently), verdict ∈ ADD / SUPERSEDE(n) / NONE;
+  4. below 0.70 → plain ADD, no LLM.
+  Thresholds start conservative per financial-services dedup guidance (auto-merge ≥0.95+, review band from ~0.90) and get calibrated on our embedder — never ported blindly.
+- **Apply is one transaction:** `INSERT` the new row, then `UPDATE old SET discarded_at = now(), superseded_by = <new id>`. The chain *is* the audit trail (Zep's bitemporal invalidate-don't-delete, structurally — mem0 needs a bolt-on history table for the same property).
+- **Deterministic guard in code, not LLM judgment:** a fact whose `observed_at` is older than the incumbent's never supersedes it (Graphiti's rule). New information wins only through this check.
+- **Degrade to ADD on any failure** (timeout, bad output, embedder down) — the cautionary tale here is upstream mem0 *removing* per-write LLM resolution in 2026 over cost/latency/misfires; on an append-only table a wrong ADD is harmless and consolidation cleans it up later.
+- Contradiction with no replacement ("I no longer …") → soft-discard the old row with a tombstone successor; **hard delete is reserved for user-requested forget** under the retention policy.
+- Runs on the background extraction path only at first (latency-free); the tool path keeps the cheap tiers (1–2) inline.
 
 ## 3. Pillar 3 — Compaction & retention
 
-**Consolidation (answers the storage-growth concern):** when a scope's live-entry count exceeds **N_max** (≈60 ⏳research), a background step (piggybacked on the existing post-turn task) synthesizes the oldest entries into the **`agent_memory_user_models` doc** — the reserved table finally activates as the compact "who is this user" profile (Hermes' USER.md / Letta's core block, realized). Folded entries get `discarded_at` set; the doc rewrite uses the existing `version` column (optimistic locking). Injection becomes: **user-model doc + relevant/recent entries** — bounded context regardless of history length.
+**Consolidation (answers the storage-growth concern):** never on the write path — a **threshold-triggered background step** (checked from the existing post-turn task: fires when a scope's live entries exceed ~1.5–2× the injection budget; a nightly job is the documented production shape, per OpenClaw's 03:00 sweep and Letta's every-5-turns sleep-time agent). It synthesizes the oldest entries into the **`agent_memory_user_models` doc** — the reserved table finally activates as the compact "who is this user" profile (Hermes' USER.md / Letta's core block / **ChatGPT's 2026 "dreaming" profile** — this is where the industry converged). Folded entries are soft-discarded with `superseded_by` → the summary doc's id, so originals stay queryable as the archive tier (only Hermes destroys originals, and that's the weakest audit story of the systems surveyed). The doc rewrite uses the existing `version` column (optimistic locking). Injection becomes: **user-model doc + relevant/recent entries** — bounded context regardless of history length.
 
 ⏳R5: whether the harness's session-compaction machinery has a reusable summarizer (Subomi's "check OpenAI tooling built-ins first") — reuse it if so, else the same `llm_complete` path.
 
@@ -52,7 +57,7 @@ Rung 2 means **semantic retrieval ships even if the extension is blocked** — p
 
 - `_digit.embed(texts: list[str]) -> list[list[float]] | None` — Azure OpenAI embeddings using the platform's own env config; `None` on any failure. ⏳R5: deployment name + dim → `AGENT_FACTORY_MEMORY_EMBED_MODEL` / `..._EMBED_DIM` env (defaulted from recon findings).
 - Decision model for smart writes: `AGENT_FACTORY_MEMORY_MODEL` (already supported) — pin to the mini model.
-- `scripts/upgrade_v2_columns.py` — idempotent `ALTER TABLE ADD COLUMN IF NOT EXISTS` for `embedding` + `superseded_by`. Extension enablement is a separate, deliberate step: on Azure Flexible Server, `vector` must first be **allow-listed in the `azure.extensions` server parameter** (portal or `az postgres flexible-server parameter set` — no restart needed), then `CREATE EXTENSION vector;` once per database (pgvector 0.8.2 on current Azure PG). If the app user lacks the privilege (⏳R5), that's a one-line platform-team/Karan request — and rung 2 keeps semantic retrieval working meanwhile.
+- `scripts/upgrade_v2_columns.py` — idempotent `ALTER TABLE ADD COLUMN IF NOT EXISTS` for `embedding` + `superseded_by` + `observed_at`. Extension enablement is a separate, deliberate step: on Azure Flexible Server, `vector` must first be **allow-listed in the `azure.extensions` server parameter** (portal or `az postgres flexible-server parameter set` — no restart needed), then `CREATE EXTENSION vector;` once per database (pgvector 0.8.2 on current Azure PG). If the app user lacks the privilege (⏳R5), that's a one-line platform-team/Karan request — and rung 2 keeps semantic retrieval working meanwhile.
 - `scripts/verify_phase_c.py` — the v2 gate: embed roundtrip (SKIP cleanly if no embedder) · deterministic similarity retrieval (seeded fake embeddings → nearest-neighbor correctness) · supersede flow (add A, add A′ → old row discarded + linked) · consolidation trigger (threshold → doc written, entries folded, injection uses doc) · degradation (no embedder ⇒ rung-3 recency still passes).
 
 ## 5. Governance notes (delta over v1)
