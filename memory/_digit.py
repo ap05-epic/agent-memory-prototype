@@ -218,14 +218,24 @@ async def embed(texts: list[str]) -> "list[list[float]] | None":
 
         from openai import AsyncOpenAI
 
-        model = os.getenv("AGENT_FACTORY_MEMORY_EMBED_MODEL", "text-embedding-3-small")
+        # Recon round 5: this resource serves text-embedding-3-large (3072) and
+        # ada-002 (1536); 3-small is NOT deployed. Default: 3-large truncated
+        # server-side to EMBED_DIM via the `dimensions` param (3-series only —
+        # ada rejects it; its native 1536 matches the default dim anyway).
+        model = os.getenv("AGENT_FACTORY_MEMORY_EMBED_MODEL", "text-embedding-3-large")
+        dim = int(os.getenv("AGENT_FACTORY_MEMORY_EMBED_DIM", "1536"))
+        kwargs = {"model": model, "input": [t[:4000] for t in texts]}
+        if "text-embedding-3" in model:
+            kwargs["dimensions"] = dim
         client = AsyncOpenAI()  # key/base_url from process env, same as the SDK
         resp = await asyncio.wait_for(
-            client.embeddings.create(model=model, input=[t[:4000] for t in texts]),
-            timeout=EMBED_TIMEOUT_SECONDS,
+            client.embeddings.create(**kwargs), timeout=EMBED_TIMEOUT_SECONDS
         )
         vectors = [item.embedding for item in sorted(resp.data, key=lambda d: d.index)]
-        return vectors if len(vectors) == len(texts) else None
+        if len(vectors) != len(texts) or any(len(v) != dim for v in vectors):
+            log.info("embed dim/count mismatch (degrading to non-semantic path)")
+            return None  # never poison the column with wrong-dimension vectors
+        return vectors
     except Exception:
         log.info("embed failed (degrading to non-semantic path)")
         return None
