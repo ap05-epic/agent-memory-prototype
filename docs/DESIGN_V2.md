@@ -46,7 +46,7 @@ Rung 2 means **semantic retrieval ships even if the extension is blocked** — p
 
 ⏳R5: whether the harness's session-compaction machinery has a reusable summarizer (Subomi's "check OpenAI tooling built-ins first") — reuse it if so, else the same `llm_complete` path.
 
-**Retention (proposal for governance, not auto-baked):** discarded/superseded rows older than a policy window get archived (cold table) or purged per compliance direction — presented as options with industry precedent from the research pass; decision belongs to governance/Karan. Metrics query shipped (`count live / discarded / superseded per scope`) so the growth conversation is data-driven.
+**Retention (proposal for governance, not auto-baked):** industry practice is **two-stage deletion** — hide immediately (our `discarded_at`), then **hard-purge on a schedule** (ChatGPT purges deleted memories within ~30 days and even its deleted-memory debug log is bounded at 30 days; Zep soft-deletes then periodically purges, including right-to-be-forgotten executions). Soft-delete alone is *not* erasure — regulators are explicit that suppressed-but-readable personal data fails GDPR Article 17. So the proposal: (a) keep `discarded_at` as stage one; (b) a scheduled purge job hard-deletes discarded/superseded rows older than a policy window (Gemini's 18-month user-tunable auto-delete is the consumer precedent; the window is governance's call); (c) a **one-call scope cascade** (`forget_user(profile_id, user_id)` — discard-all now, purge per schedule) since one-call user deletion is table stakes across Zep/mem0/Claude; (d) for the strictest reading, **crypto-shredding** (per-scope encryption key, destroy the key on erasure — EDPB/ICO-accepted) is documented as the enterprise-grade upgrade path. Metrics query shipped (`count live / discarded / superseded per scope`) so the growth conversation is data-driven.
 
 ## 4. New seams & config
 
@@ -58,7 +58,8 @@ Rung 2 means **semantic retrieval ships even if the extension is blocked** — p
 ## 5. Governance notes (delta over v1)
 
 - **Embedding calls send memory content to the same Azure OpenAI boundary the chat itself already uses** — no new data boundary; worth stating explicitly.
-- Supersede chains *improve* auditability (fact evolution is inspectable); permanent-deletion requests now have a precise shape: purge a scope's rows including superseded chains — the policy question is *when*, which the retention proposal covers.
+- Supersede chains *improve* auditability (fact evolution is inspectable) — and this is the same bitemporal pattern Zep uses in its enterprise temporal knowledge graph (facts get `invalid_at`, never overwritten), so it's defensible as industry-strongest practice, not an invention.
+- Permanent deletion now has a precise, two-stage shape (see §3): discard immediately, purge on schedule, one-call scope cascade. Important nuance from the research: **deletion must reach the embeddings** — in our design embeddings live in the same row (a column, not a separate index/store), so a row purge removes the vector with it; if an ANN index is added later, index hygiene joins the purge job's duties.
 - Prompt-injection posture unchanged (same write funnel, caps, framing); the decision model only ever sees memory content + candidate fact, and its output is constrained to an enum + id.
 
 ## 6. What this does NOT change
