@@ -46,7 +46,7 @@ async def main():
 
     # 1-3. parser leniency (no DB, no model)
     good = '```json\n{"new_entries": [{"content": "User prefers bullets", "category": "preference"}]}\n```'
-    check(1, "parse fenced json", parse_extraction(good) == [{"content": "User prefers bullets", "category": "preference"}])
+    check(1, "parse fenced json", parse_extraction(good) == [{"content": "User prefers bullets", "category": "preference", "observed_at": None}])
     check(2, "parse garbage -> []", parse_extraction("no json here") == [])
     check(3, "parse bad category -> note", parse_extraction('{"new_entries": [{"content": "x", "category": "weird"}]}')[0]["category"] == "note")
 

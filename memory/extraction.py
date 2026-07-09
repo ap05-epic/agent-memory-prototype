@@ -11,8 +11,8 @@ import asyncio
 import json
 import re
 
-from . import _digit
-from .store import add_entry, recent_entries
+from . import _digit, semantic
+from .store import recent_entries, smart_add_entry
 
 TIMEOUT_SECONDS = 20
 _CATEGORIES = {"preference", "fact", "context", "note"}
@@ -25,6 +25,9 @@ Extract ONLY:
 - durable personal/professional context (role, team, projects, expertise)
 - standing corrections or decisions
 Attribute correctly ("User prefers X", "User was recommended Y").
+If a fact is tied to a point in time, resolve relative words ("yesterday",
+"recently") to an absolute date and include it as "observed_at": "YYYY-MM-DD";
+omit observed_at otherwise.
 
 Do NOT extract: greetings or chit-chat, one-off task details, vague
 characterizations, anything already listed in KNOWN MEMORIES, and NEVER
@@ -41,23 +44,13 @@ User: {user_text}
 Assistant: {assistant_text}
 
 Return ONLY JSON, no prose:
-{{"new_entries": [{{"content": "...", "category": "preference|fact|context|note"}}]}}"""
+{{"new_entries": [{{"content": "...", "category": "preference|fact|context|note", "observed_at": "YYYY-MM-DD (optional)"}}]}}"""
 
 
 def parse_extraction(raw: str) -> list[dict]:
     """Lenient: strip code fences, take the first JSON object, drop garbage
     silently. Malformed model output must cost nothing."""
-    if not raw:
-        return []
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.MULTILINE)
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end <= start:
-        return []
-    try:
-        data = json.loads(text[start : end + 1])
-    except (json.JSONDecodeError, ValueError):
-        return []
+    data = semantic.parse_json_maybe_fenced(raw)
     entries = data.get("new_entries") if isinstance(data, dict) else None
     if not isinstance(entries, list):
         return []
@@ -69,9 +62,17 @@ def parse_extraction(raw: str) -> list[dict]:
                 {
                     "content": item["content"].strip(),
                     "category": cat if cat in _CATEGORIES else "note",
+                    "observed_at": semantic.parse_observed_at(item.get("observed_at")),
                 }
             )
     return out
+
+
+async def decide_supersede(fact: str, candidates: list[str]) -> str:
+    """The tier-3 decision call (ambiguity band only). Small model, integer-
+    indexed candidates; caller parses + range-validates via semantic.parse_decision."""
+    prompt = semantic.render_decision_prompt(fact, candidates)
+    return await asyncio.wait_for(_digit.llm_complete(prompt), timeout=TIMEOUT_SECONDS)
 
 
 async def extract_and_store(
@@ -95,7 +96,7 @@ async def extract_and_store(
         raw = await asyncio.wait_for(_digit.llm_complete(prompt), timeout=TIMEOUT_SECONDS)
         written = 0
         for item in parse_extraction(raw):
-            status = await add_entry(
+            status, _ = await smart_add_entry(
                 identity.profile_id,
                 identity.user_id,
                 item["content"],
@@ -103,8 +104,10 @@ async def extract_and_store(
                 source="extraction",
                 tenant_id=identity.tenant_id,
                 thread_id=identity.thread_id,
+                observed_at=item.get("observed_at"),
+                decide=decide_supersede,  # tier-3 only fires in the ambiguity band
             )
-            written += status == "saved"
+            written += status in ("saved", "superseded_old")
         _digit.log.info(
             "extraction wrote=%d scope=%s/%s", written, identity.profile_id, identity.user_id
         )

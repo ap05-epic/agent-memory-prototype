@@ -21,6 +21,7 @@ WIRING = {
     "identity": True,   # Q4/Q5: ToolContext.context dict keys profile_id/user_id/thread_id
     "flag": True,       # Q16: profile.memory.semantic_memory_enabled; tools via ctx key
     "llm": True,        # Q15: mini SDK Runner.run — confirmed non-recursive path
+    "embed": True,      # v2: Azure OpenAI embeddings via the same env the SDK uses (R5 pins deployment)
 }
 
 
@@ -195,3 +196,36 @@ async def llm_complete(prompt: str) -> str:
         ),
     )
     return str(result.final_output or "")
+
+
+# --------------------------------------------------------------------------
+# v2 — embeddings seam.
+# Uses the same process env the SDK inherits at app startup
+# (configure_openai_env sets OPENAI_API_KEY / OPENAI_BASE_URL from the Azure
+# values). Deployment name comes from AGENT_FACTORY_MEMORY_EMBED_MODEL
+# (recon round 5 pins the default for this environment).
+# Contract: returns one vector per input text, or None on ANY failure —
+# callers must treat None as "no semantic tier this call" and degrade.
+# --------------------------------------------------------------------------
+EMBED_TIMEOUT_SECONDS = 5.0
+
+
+async def embed(texts: list[str]) -> "list[list[float]] | None":
+    if not texts:
+        return []
+    try:
+        import asyncio
+
+        from openai import AsyncOpenAI
+
+        model = os.getenv("AGENT_FACTORY_MEMORY_EMBED_MODEL", "text-embedding-3-small")
+        client = AsyncOpenAI()  # key/base_url from process env, same as the SDK
+        resp = await asyncio.wait_for(
+            client.embeddings.create(model=model, input=[t[:4000] for t in texts]),
+            timeout=EMBED_TIMEOUT_SECONDS,
+        )
+        vectors = [item.embedding for item in sorted(resp.data, key=lambda d: d.index)]
+        return vectors if len(vectors) == len(texts) else None
+    except Exception:
+        log.info("embed failed (degrading to non-semantic path)")
+        return None

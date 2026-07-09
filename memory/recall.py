@@ -6,8 +6,8 @@ live user input — NOT 'authoritative' (that is Hermes' single-user framing).
 
 from __future__ import annotations
 
-from . import _digit
-from .store import recent_entries
+from . import _digit, semantic
+from .store import candidate_entries, recent_entries
 
 CHAR_BUDGET = 8000
 INJECT_LIMIT = 20
@@ -52,14 +52,33 @@ async def build_memory_block(
     profile_id: str,
     user_id: str,
     tenant_id: str = "default",
+    query_text: str | None = None,
 ) -> tuple[str | None, int]:
     """Fetch + render. Returns (block, count): block is the injected string (or
     None when there is nothing/on error — recall may never break a turn), count
     is how many memories it reflects (0 when None), for the recall indicator.
-    (count == len(entries) except in the rare case the char budget drops the
-    oldest entries — close enough for an indicator.)"""
+
+    v2: when query_text is given, retrieval is RELEVANCE-BLENDED — embed the
+    incoming message, rank candidates by 0.7·similarity + 0.3·recency-decay
+    with a minimum-similarity floor, keeping a small pure-recency floor set.
+    Degrades automatically: embedder unavailable / nothing embedded / no
+    query_text  ⇒  v1 recency behavior (newest INJECT_LIMIT)."""
     try:
-        entries = await recent_entries(profile_id, user_id, tenant_id, INJECT_LIMIT)
+        query_vec = None
+        if query_text:
+            vecs = await _digit.embed([query_text[:2000]])
+            query_vec = vecs[0] if vecs else None
+        if query_vec is None:
+            entries = await recent_entries(profile_id, user_id, tenant_id, INJECT_LIMIT)
+        else:
+            pool = await candidate_entries(profile_id, user_id, tenant_id, query_vec)
+            entries = semantic.select_for_recall(pool, query_vec, INJECT_LIMIT)
+            if not entries:  # floor filtered everything odd -> recency fallback
+                entries = await recent_entries(profile_id, user_id, tenant_id, INJECT_LIMIT)
+            else:  # render_block expects newest-first input
+                entries.sort(
+                    key=lambda e: (e.created_at.timestamp() if e.created_at else 0.0), reverse=True
+                )
         block = render_block(entries)
         return (block, len(entries) if block else 0)
     except Exception:

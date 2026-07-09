@@ -7,8 +7,10 @@ adapts it to however tools receive per-turn context there.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from . import _digit
-from .store import add_entry
+from .store import smart_add_entry
 
 TOOL_NAME = "save_memory"
 
@@ -25,6 +27,7 @@ TOOL_DESCRIPTION = (
 _DECLINE = "Memory is not enabled for this agent, so nothing was saved."
 _RESULTS = {
     "saved": "Saved to persistent memory.",
+    "superseded_old": "Saved - this replaces an older memory on the same topic.",
     "duplicate": "Already in memory - nothing new saved.",
     "rejected": "That looks like sensitive data (credentials/account numbers), so it was not saved.",
     "empty": "Nothing usable to save.",
@@ -41,7 +44,9 @@ async def save_memory_impl(ctx, content: str, category: str = "note") -> str:
     if identity is None:
         _digit.log.warning("save_memory: could not resolve identity from ctx")
         return _DECLINE
-    status = await add_entry(
+    # Cheap tiers only on the tool path (text dedup + same-fact fast path);
+    # the tier-3 LLM decision runs on the background extraction path.
+    status, _ = await smart_add_entry(
         identity.profile_id,
         identity.user_id,
         content,
@@ -49,5 +54,7 @@ async def save_memory_impl(ctx, content: str, category: str = "note") -> str:
         source="tool",
         tenant_id=identity.tenant_id,
         thread_id=identity.thread_id,
+        observed_at=datetime.now(timezone.utc),  # user stated it now
+        decide=None,
     )
     return _RESULTS.get(status, _DECLINE)
