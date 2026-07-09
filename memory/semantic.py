@@ -16,15 +16,24 @@ import struct
 from datetime import datetime, timezone
 
 # --- tiered-gate thresholds (cosine similarity) ----------------------------
-# Live calibration note: absolute cosine values vary by embedder — the live
-# run showed real-phrasing contradictions can land below a hand-picked band.
-# Rule: when a decider is available, anything >= T_DECIDE_FLOOR goes to the
-# LLM to adjudicate (its prompt handles "unrelated -> ADD"); hard thresholds
-# only gate the NO-decider paths, where they stay conservative.
+# CALIBRATED LIVE on text-embedding-3-large @ dimensions=1536 (gate telemetry,
+# clean-room acceptance): a real short-fact contradiction ("exactly three
+# bullet points" vs "five bullet points now, not three") measured
+# top_sim=0.309; an unrelated fact measured 0.400 and the decider correctly
+# chose ADD. Lesson (proven twice): never hand-pick or port thresholds —
+# absolute cosine ranges are embedder-specific and far lower for short
+# paraphrased facts than dedup literature suggests. Rule: when a decider is
+# available, anything >= T_DECIDE_FLOOR goes to the LLM to adjudicate (its
+# prompt handles "unrelated -> ADD" / "same -> NONE"); hard thresholds only
+# gate the NO-decider paths, where they stay conservative.
 T_SAME = 0.95          # >= : same fact (no-decider path drops as duplicate)
 T_BAND_LOW = 0.70      # legacy band low (still the no-decider ADD boundary)
-T_DECIDE_FLOOR = 0.50  # decider path: below this, skip the LLM, plain ADD
+T_DECIDE_FLOOR = 0.30  # decider path floor — live-calibrated (was 0.50, missed 0.309)
 MIN_RECALL_SIM = 0.35  # injection floor: below this, relevance rung ignores it
+# (recall note: memory-to-memory sims for RELATED facts observed ~0.30-0.40 on
+# this embedder; query-to-memory recall passed live at 0.35, and the recency
+# floor covers near-term items regardless — lower MIN_RECALL_SIM the same way
+# if recall telemetry ever shows known-relevant items being skipped.)
 
 # --- blend weights ----------------------------------------------------------
 W_SIM = 0.7

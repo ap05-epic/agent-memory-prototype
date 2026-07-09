@@ -30,7 +30,7 @@ if not log.handlers and os.getenv("AGENT_FACTORY_MEMORY_QUIET", "").strip() not 
 # Build marker: lets any process PROVE which package code it actually loaded
 # (grep the server log for "agent_memory seam loaded", or read BUILD directly).
 # Bump on every transfer-repo change that must reach the pod.
-BUILD = "2026-07-08.5-visible-logs"
+BUILD = "2026-07-09.6-calibrated-floor"
 log.info("agent_memory seam loaded build=%s", BUILD)
 
 WIRING = {

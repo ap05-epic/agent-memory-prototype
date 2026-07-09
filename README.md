@@ -60,7 +60,12 @@ Done:
 - [x] **Recall indicator live (2026-07-07):** turn start emits a `run.status` "🧠 Recalled N memories" line (console renders it natively — no console changes). Verified on `memory-demo`.
 - [x] Documentation: SHOWCASE, TECHNICAL_DEEP_DIVE, DEMO_WALKTHROUGH
 
+- [x] **Memory v2 LIVE-ACCEPTED end to end (pgvector semantic recall + supersede chains):** all gates PASS on pod, live beats green — topical recall beats recency, supersede chain in DB (`superseded_by` + retired old row), post-supersede recall follows the newest preference, isolation intact. Decision floor **live-calibrated to 0.30** via the gate's telemetry (real contradiction measured top_sim=0.309 on 3-large@1536). Design: `docs/DESIGN_V2.md` · brief: `docs/IMPLEMENTATION_BRIEF_V2.md`
+
 Open (all optional / follow-up):
-- [ ] Rehearse `DEMO_RUNBOOK.md`, then demo to Subomi
+- [ ] Rehearse `DEMO_RUNBOOK.md` (+ add v2 beats: semantic recall, live supersede), then demo to Subomi
+- [ ] Send Subomi the requested package: `SHOWCASE.md` + `DESIGN_V2.md` + `research/INDUSTRY_PRACTICES.md`
+- [ ] v2 pillar 3: consolidation into the user-model doc (designed, not yet built)
+- [ ] Retention purge-job proposal (designed in DESIGN_V2 §3, needs governance input)
 - [ ] Karan sync (scoping / tenant / prod-DDL / retention)
 - [ ] Nice-to-haves: save-chip wording polish, learn indicator (both in `docs/INDICATORS.md`, neither needed)
