@@ -160,6 +160,23 @@ def memory_enabled(profile_or_ctx) -> bool:
     return False
 
 
+def _bridge_azure_env() -> None:
+    """Standalone scripts don't get the harness's startup env mapping
+    (configure_openai_env maps AZURE_OPENAI_* -> OPENAI_*). Mirror it here so
+    embed()/llm_complete() work in any process. setdefault only — never
+    overrides values the app already set."""
+    az_key = os.getenv("AZURE_OPENAI_API_KEY")
+    if az_key and not os.getenv("OPENAI_API_KEY"):
+        os.environ["OPENAI_API_KEY"] = az_key
+    if not os.getenv("OPENAI_BASE_URL"):
+        az_base = os.getenv("AZURE_OPENAI_BASE_URL") or os.getenv("AZURE_OPENAI_ENDPOINT")
+        if az_base:
+            base = az_base.rstrip("/")
+            if not base.endswith("/openai/v1"):
+                base = base + "/openai/v1"
+            os.environ["OPENAI_BASE_URL"] = base
+
+
 # --------------------------------------------------------------------------
 # Q15 — side LLM call for extraction (Phase B).
 # No raw internal client exists in the harness. The confirmed-safe path is a
@@ -172,6 +189,7 @@ def memory_enabled(profile_or_ctx) -> bool:
 # agent_factory.config.get_model_name() (AZURE_OPENAI_MODEL in dev).
 # --------------------------------------------------------------------------
 async def llm_complete(prompt: str) -> str:
+    _bridge_azure_env()
     from agents import Agent, Runner, RunConfig  # lazy: Phase A never needs this
 
     try:
@@ -216,6 +234,7 @@ async def embed(texts: list[str]) -> "list[list[float]] | None":
     try:
         import asyncio
 
+        _bridge_azure_env()
         from openai import AsyncOpenAI
 
         # Recon round 5: this resource serves text-embedding-3-large (3072) and

@@ -1,5 +1,7 @@
 # Implementation Brief — Memory v2 (semantic retrieval + supersede writes)
 
+> **RESUME NOTE (after the first build session):** Tasks 1–4 are DONE on the pod (pgvector installed, package synced, columns added as `vector(1536)`, query_text edit applied, Phase A+B PASS). The first session correctly stopped on a Phase C failure — two bugs in the *transfer repo* (an 8-dim test stub incompatible with the live vector(1536) column, and missing Azure-env bridging in standalone scripts), both now fixed upstream. **To resume:** `cd /projects/agent-memory-prototype && git pull` → re-run the Task 2 `cp -r` sync → re-run `backfill_embeddings.py` (expect embedded=5 now) → run the three gates (Phase C should PASS with `live_embedder=ok dim=1536`) → proceed to Task 6 acceptance. Keep `AGENT_FACTORY_MEMORY_PGVECTOR=1` — do NOT flip it to 0 (see corrected fallback ladder).
+
 **You are the implementation agent on the pod, harness repository open.** Memory v1 is live and demonstrated; **do not regress it**. The entire v2 is already written and gate-verified in the transfer repo (`/projects/agent-memory-prototype`) — your job: install one package, sync the memory package, run one additive schema upgrade, make **one one-line harness edit**, set env, run the gates, and report. Recon round 5 confirmed: pgvector **0.8.0 is already installed** in the database, and the working embedding deployments are `text-embedding-3-large` (use with `dimensions=1536`) and `text-embedding-ada-002` (fallback).
 
 ## Non-negotiable rules
@@ -75,7 +77,7 @@ File: `agent_factory/runtime/sdk_runner.py`, in `stream_turn` — the deployed r
 ## Fallback ladder (highest rung that works; report which)
 
 1. Full v2: pgvector rung 1 + supersede + query-aware recall.
-2. `AGENT_FACTORY_MEMORY_PGVECTOR=0`: BYTEA + Python similarity (rung 2) — same behaviors, no extension/pip dependency.
+2. `AGENT_FACTORY_MEMORY_PGVECTOR=0`: BYTEA + Python similarity (rung 2) — **only valid BEFORE the vector column exists** (i.e., if Task 1's pip install had failed and the upgrade had created BYTEA). Once the live column is `vector(1536)` — which it now is — flipping the flag mismatches the column type; converting to BYTEA would be a deliberate ALTER, not an env flip. On this pod: stay on 1.
 3. Skip Task 4 (no query_text): v2 writes/supersede still land; recall stays recency-based (v1).
 4. Anything else failing → revert env vars; v1 keeps running untouched.
 

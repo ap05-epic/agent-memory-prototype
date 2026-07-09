@@ -33,12 +33,20 @@ FAILURES: list[str] = []
 NOW = datetime.now(timezone.utc)
 
 # --- deterministic embedder stub: fixed direction per known phrase ----------
-DIM = 8  # tiny vectors are fine for logic tests
+# CRITICAL: stub vectors must match the environment's real dimension — a live
+# pgvector column is vector(EMBED_DIM) and rejects anything else (learned on
+# the pod: 8-dim stubs pass on a BYTEA column and fail on vector(1536)).
+try:
+    from agent_factory.memory.models import EMBED_DIM as DIM  # type: ignore
+except ImportError:
+    from memory.models import EMBED_DIM as DIM  # type: ignore
 
 
 def _unit(i: int) -> list[float]:
+    # logic lives in the first 8 components; zero-padding to DIM doesn't
+    # change any cosine relationships the checks rely on
     v = [0.0] * DIM
-    v[i % DIM] = 1.0
+    v[i % 8] = 1.0
     return v
 
 
