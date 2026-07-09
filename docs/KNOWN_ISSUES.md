@@ -1,5 +1,7 @@
 # Known Issues — Local Tool-Calling Loop
 
+> ✅ **RESOLVED (2026-07-08).** False alarm — tool calling works. The intermittent stalls were traced (per the team lead) to differences between the older console interface and the newer official DIGIT UI, not to the harness, the tools, or the Azure endpoint. The team offered setup scripts/guidance for a dev environment closer to the team's primary configuration. The known-good launch recipe below remains the reference for local runs. The diagnosis content is kept for future reference.
+
 ## Symptom
 
 Locally, agents get **stuck in a loop on tool calls** — the turn never reaches `run.completed`, the model appears to keep re-issuing the same tool call, and messages never finish. Reported across agents.
