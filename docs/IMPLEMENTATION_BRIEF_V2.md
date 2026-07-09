@@ -1,6 +1,24 @@
 # Implementation Brief — Memory v2 (semantic retrieval + supersede writes)
 
-> **RESUME NOTE 4 — DIAGNOSIS FIRST (after the fourth session).** Your run proved the decisive fact: rows were written but ZERO `memory gate:` lines appeared — and the current code logs that line **unconditionally on every write**. Therefore **the process serving :8080 was not running the synced code.** Two known causes: (a) a stale/foreign backend still owns 8080 (the coordinator has been running a backend from another session — likely!), so your new start failed to bind and the OLD process kept serving (health checks pass against it, its logs go elsewhere); (b) a non-editable `pip install` copy of `agent_factory` in site-packages shadowing `src/` for the app (scripts see src via PYTHONPATH; the app wouldn't). Do this, in order:
+> **RESUME NOTE 5 — CLEAN ROOM (the definitive run).** Session 5 solved the whole mystery chain with evidence: (a) the earlier failures were phantom — a **stale uvicorn (pid 73569)** owned :8080 and served old code; (b) the BUILD/`memory gate:` lines could never appear because uvicorn doesn't surface the `agent_memory` logger — **fixed: the package now attaches its own stderr handler**, so with `2>&1` into a file the lines ARE captured (new `BUILD=2026-07-08.5-visible-logs`); (c) your reconstructed payload omitted `"runtime": {"execution_engine": "sdk"}`, so the harness ran its **placeholder engine** (no agent, no tools, no memory) — the exact curls are inline below; never rebuild payloads from OpenAPI. Protocol:
+>
+> 1. `cd /projects/agent-memory-prototype && git pull` → re-run the Task 2 `cp -r` sync.
+> 2. **Kill ALL harness backends** (the coordinator has paused other sessions; every `uvicorn agent_factory.api.app` process is ours): `pkill -f "uvicorn agent_factory.api.app"` → wait 2s → `ss -ltnp | grep ':808'` must show nothing on 8080/8081.
+> 3. Launch ONE backend on 8080 with the full block, PYTHONPATH, and file-captured stderr:
+>    the usual `unset`/exports (launch fix, PORT=8080, AGENT_FACTORY_PROFILE_PATHS, the 4 memory vars) **plus `export PYTHONPATH=/projects/DigitHarnessRepo/digit-agent-harness/src`**, then `scripts/run-local-with-profiles.sh > /tmp/mem-r5.log 2>&1 &`.
+> 4. **Identity (now satisfiable):** `grep 'agent_memory seam loaded build=2026-07-08.5-visible-logs' /tmp/mem-r5.log` must match, and the `ss -ltnp '( sport = :8080 )'` PID must be your process. Do not proceed otherwise.
+> 5. Cleanup: retire all bullet rows for the acceptance user (same UPDATE as before).
+> 6. The two turns — **run these EXACTLY as written**:
+> ```
+> curl -sS -N -X POST http://127.0.0.1:8080/api/v1/turns/stream -H 'Content-Type: application/json' \
+>   -d '{"profile_id":"memory-demo","input":"Remember: I always want answers as exactly three bullet points.","user":{"user_id":"console-user","email":"console-user"},"runtime":{"execution_engine":"sdk"}}'
+> curl -sS -N -X POST http://127.0.0.1:8080/api/v1/turns/stream -H 'Content-Type: application/json' \
+>   -d '{"profile_id":"memory-demo","input":"Remember: actually I want five bullet points now, not three.","user":{"user_id":"console-user","email":"console-user"},"runtime":{"execution_engine":"sdk"}}'
+> ```
+> If any response mentions `placeholder`, the payload is wrong — use the block above verbatim.
+> 7. Evidence: `grep 'memory gate:' /tmp/mem-r5.log` (now guaranteed for every write — include all lines), the DB chain query (`retired` + `superseded_by`), a new-thread neutral turn (expect five bullets), `scope_metrics` (expect `superseded>=1`).
+>
+> ~~RESUME NOTE 4 (superseded by the above):~~ Your run proved the decisive fact: rows were written but ZERO `memory gate:` lines appeared — and the current code logs that line **unconditionally on every write**. Therefore **the process serving :8080 was not running the synced code.** Two known causes: (a) a stale/foreign backend still owns 8080 (the coordinator has been running a backend from another session — likely!), so your new start failed to bind and the OLD process kept serving (health checks pass against it, its logs go elsewhere); (b) a non-editable `pip install` copy of `agent_factory` in site-packages shadowing `src/` for the app (scripts see src via PYTHONPATH; the app wouldn't). Do this, in order:
 >
 > 1. `cd /projects/agent-memory-prototype && git pull` → re-run the Task 2 `cp -r` sync (the package now carries a BUILD marker).
 > 2. **Who owns the port?** `ss -ltnp '( sport = :8080 )'` → note PID → `ps -fp <PID>` (command, start time, cwd via `ls -l /proc/<PID>/cwd`). If it's a uvicorn `agent_factory.api.app` process: `pkill -f "uvicorn agent_factory.api.app"`, wait 2s, confirm the port is free. If it's something else/unknown (possibly the coordinator's other session): **don't kill it — use `PORT=8081`** for everything below and point the acceptance curls at 8081.

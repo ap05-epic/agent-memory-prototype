@@ -15,10 +15,22 @@ from dataclasses import dataclass
 
 log = logging.getLogger("agent_memory")
 
+# Deterministic log visibility: uvicorn's log config does NOT surface app
+# loggers (observed live — INFO lines from this logger vanished), so the
+# package attaches its own stderr handler once. Server launches that redirect
+# 2>&1 to a file therefore always capture the build marker and gate telemetry.
+# AGENT_FACTORY_MEMORY_QUIET=1 disables.
+if not log.handlers and os.getenv("AGENT_FACTORY_MEMORY_QUIET", "").strip() not in ("1", "true"):
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s agent_memory %(levelname)s %(message)s"))
+    log.addHandler(_handler)
+    log.setLevel(logging.INFO)
+    log.propagate = False
+
 # Build marker: lets any process PROVE which package code it actually loaded
 # (grep the server log for "agent_memory seam loaded", or read BUILD directly).
 # Bump on every transfer-repo change that must reach the pod.
-BUILD = "2026-07-08.4-decide-floor"
+BUILD = "2026-07-08.5-visible-logs"
 log.info("agent_memory seam loaded build=%s", BUILD)
 
 WIRING = {
