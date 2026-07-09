@@ -16,8 +16,14 @@ import struct
 from datetime import datetime, timezone
 
 # --- tiered-gate thresholds (cosine similarity) ----------------------------
-T_SAME = 0.95      # >= : same fact — drop unless strictly richer
-T_BAND_LOW = 0.70  # [T_BAND_LOW, T_SAME): ambiguity band -> LLM decision
+# Live calibration note: absolute cosine values vary by embedder — the live
+# run showed real-phrasing contradictions can land below a hand-picked band.
+# Rule: when a decider is available, anything >= T_DECIDE_FLOOR goes to the
+# LLM to adjudicate (its prompt handles "unrelated -> ADD"); hard thresholds
+# only gate the NO-decider paths, where they stay conservative.
+T_SAME = 0.95          # >= : same fact (no-decider path drops as duplicate)
+T_BAND_LOW = 0.70      # legacy band low (still the no-decider ADD boundary)
+T_DECIDE_FLOOR = 0.50  # decider path: below this, skip the LLM, plain ADD
 MIN_RECALL_SIM = 0.35  # injection floor: below this, relevance rung ignores it
 
 # --- blend weights ----------------------------------------------------------

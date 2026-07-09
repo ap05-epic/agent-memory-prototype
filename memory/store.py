@@ -157,6 +157,7 @@ async def smart_add_entry(
 
     new_vec = await _embed_one(content)  # None => no semantic tiers this call
     supersede_target: MemoryEntry | None = None
+    gate_note = "no-embed" if new_vec is None else "no-candidates"
 
     if semantic_gate and new_vec is not None:
         try:
@@ -170,35 +171,43 @@ async def smart_add_entry(
 
             if sims:
                 top_sim, top_e = sims[0]
+                gate_note = f"top_sim={top_sim:.3f} tier=add"
                 # Tier 2 — same-fact fast path (richer text wins without an LLM).
                 if top_sim >= semantic.T_SAME and len(content) > len(top_e.content) * 1.2:
                     if semantic.may_supersede(observed_at, top_e.observed_at):
                         supersede_target = top_e  # strictly richer -> replace
-                elif top_sim >= semantic.T_BAND_LOW:
-                    if decide is None:
-                        # No decider on this path: only exact-tier certainty acts.
-                        # >=T_SAME -> treat as duplicate; band -> plain ADD.
-                        if top_sim >= semantic.T_SAME:
-                            return ("duplicate", None)
-                    else:
-                        # Tier 3 — one small-model decision. NOTE: >=T_SAME is
-                        # included deliberately — near-identical phrasing can be
-                        # a contradiction ("three bullets" -> "five bullets"
-                        # embeds ~identically); "same meaning -> NONE" in the
-                        # prompt handles true duplicates.
-                        band = [(s, e) for s, e in sims[:DECISION_TOP_K] if s >= semantic.T_BAND_LOW]
-                        raw = await decide(content, [e.content for _, e in band])
-                        action, idx = semantic.parse_decision(raw, len(band))
-                        if action == "none":
-                            return ("duplicate", None)
-                        if action == "supersede":
-                            target = band[idx][1]
-                            if semantic.may_supersede(observed_at, target.observed_at):
-                                supersede_target = target
-                            # guard refused -> fall through to plain ADD
+                        gate_note = f"top_sim={top_sim:.3f} tier=richer-fast-path"
+                elif decide is not None and top_sim >= semantic.T_DECIDE_FLOOR:
+                    # Decider path: adjudicate anything above the low floor —
+                    # hand-picked bands proved uncalibrated for real phrasings
+                    # (live: a three->five contradiction fell below 0.70 and
+                    # silently ADDed). The prompt handles "unrelated -> ADD"
+                    # and "same meaning -> NONE"; failures degrade to ADD.
+                    band = [(s, e) for s, e in sims[:DECISION_TOP_K] if s >= semantic.T_DECIDE_FLOOR]
+                    raw = await decide(content, [e.content for _, e in band])
+                    action, idx = semantic.parse_decision(raw, len(band))
+                    gate_note = f"top_sim={top_sim:.3f} tier=decide action={action}"
+                    if action == "none":
+                        _digit.log.info("memory gate: %s scope=%s/%s", gate_note, profile_id, user_id)
+                        return ("duplicate", None)
+                    if action == "supersede":
+                        target = band[idx][1]
+                        if semantic.may_supersede(observed_at, target.observed_at):
+                            supersede_target = target
+                        else:
+                            gate_note += " guard=refused"
+                elif decide is None and top_sim >= semantic.T_SAME:
+                    # No decider: conservative — same-fact drops as duplicate.
+                    _digit.log.info(
+                        "memory gate: top_sim=%.3f tier=dup-no-decider scope=%s/%s",
+                        top_sim, profile_id, user_id,
+                    )
+                    return ("duplicate", None)
         except Exception:
             _digit.log.warning("semantic gate failed (degrading to ADD)", exc_info=True)
             supersede_target = None
+            gate_note = "gate-exception"
+    _digit.log.info("memory gate: %s scope=%s/%s", gate_note, profile_id, user_id)
 
     entry = MemoryEntry(
         profile_id=profile_id,

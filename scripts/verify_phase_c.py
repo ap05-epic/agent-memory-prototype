@@ -163,10 +163,17 @@ async def main():
         m = await scope_metrics(P, U)
         check(10, "high-sim contradiction via decide -> supersede", s10 == "superseded_old" and m["superseded"] >= 2, (s10, m))
 
-        # 11. forget_user cascade
+        # 11. below the decide floor, the LLM is never consulted (cost control)
+        async def decide_must_not_be_called(fact, candidates):
+            raise AssertionError("decide called below T_DECIDE_FLOOR")
+
+        s11, _ = await smart_add_entry(P, U, "user likes pasta", decide=decide_must_not_be_called)
+        check(11, "decide floor skips LLM for unrelated fact", s11 == "saved", s11)
+
+        # 12. forget_user cascade
         n = await forget_user(P, U)
         m = await scope_metrics(P, U)
-        check(11, "forget_user cascade", n >= 3 and m["live"] == 0 and m["discarded"] >= n, (n, m))
+        check(12, "forget_user cascade", n >= 3 and m["live"] == 0 and m["discarded"] >= n, (n, m))
 
         await cleanup()
     finally:
