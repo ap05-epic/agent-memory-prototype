@@ -63,6 +63,7 @@ TOPIC_FOOD = _unit(2)     # unrelated topic
 VOCAB = {
     "user wants three bullet points": TOPIC_FMT,
     "user wants five bullet points": _mix(TOPIC_FMT, TOPIC_TEAM, 0.97),  # tier-2 same-fact
+    "user wants three bullets": _mix(TOPIC_FMT, TOPIC_TEAM, 0.99),  # >=0.95, NOT richer (the live-failure shape)
     "user works on payments team": TOPIC_TEAM,
     "user works on payments reconciliation team now": _mix(TOPIC_TEAM, TOPIC_FMT, 0.60),  # tier-3 band
     "user likes pasta": TOPIC_FOOD,
@@ -150,10 +151,22 @@ async def main():
         check(9, "embedder-down degradation", block is not None and count >= 1)
         _digit.embed = fake_embed
 
-        # 10. forget_user cascade
+        # 10. >=0.95-similar CONTRADICTION with a decider routes to the decision
+        # (the live-observed failure: "three bullets" -> "five bullets" embeds
+        # near-identically; without this routing it was dropped as a duplicate)
+        async def decide_contradiction(fact, candidates):
+            return "SUPERSEDE 0"
+
+        s10, _ = await smart_add_entry(
+            P, U, "user wants three bullets", observed_at=NOW, decide=decide_contradiction
+        )
+        m = await scope_metrics(P, U)
+        check(10, "high-sim contradiction via decide -> supersede", s10 == "superseded_old" and m["superseded"] >= 2, (s10, m))
+
+        # 11. forget_user cascade
         n = await forget_user(P, U)
         m = await scope_metrics(P, U)
-        check(10, "forget_user cascade", n >= 3 and m["live"] == 0 and m["discarded"] >= n, (n, m))
+        check(11, "forget_user cascade", n >= 3 and m["live"] == 0 and m["discarded"] >= n, (n, m))
 
         await cleanup()
     finally:

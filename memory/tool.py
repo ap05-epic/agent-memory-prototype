@@ -44,8 +44,14 @@ async def save_memory_impl(ctx, content: str, category: str = "note") -> str:
     if identity is None:
         _digit.log.warning("save_memory: could not resolve identity from ctx")
         return _DECLINE
-    # Cheap tiers only on the tool path (text dedup + same-fact fast path);
-    # the tier-3 LLM decision runs on the background extraction path.
+    # User-directed saves get the FULL gate including the tier-3 decision:
+    # they are high-intent and low-frequency, and this is the main path where
+    # corrections ("actually, five now") arrive. Extraction can't catch these
+    # afterwards — it treats tool-saved facts as already-known (observed live:
+    # the two safeguards starve each other and contradictions accumulate).
+    # On any decision failure the gate degrades to a plain ADD.
+    from .extraction import decide_supersede  # local import avoids cycles at module load
+
     status, _ = await smart_add_entry(
         identity.profile_id,
         identity.user_id,
@@ -55,6 +61,6 @@ async def save_memory_impl(ctx, content: str, category: str = "note") -> str:
         tenant_id=identity.tenant_id,
         thread_id=identity.thread_id,
         observed_at=datetime.now(timezone.utc),  # user stated it now
-        decide=None,
+        decide=decide_supersede,
     )
     return _RESULTS.get(status, _DECLINE)

@@ -170,26 +170,32 @@ async def smart_add_entry(
 
             if sims:
                 top_sim, top_e = sims[0]
-                # Tier 2 — same-fact fast path.
-                if top_sim >= semantic.T_SAME:
-                    if len(content) > len(top_e.content) * 1.2 and semantic.may_supersede(
-                        observed_at, top_e.observed_at
-                    ):
+                # Tier 2 — same-fact fast path (richer text wins without an LLM).
+                if top_sim >= semantic.T_SAME and len(content) > len(top_e.content) * 1.2:
+                    if semantic.may_supersede(observed_at, top_e.observed_at):
                         supersede_target = top_e  # strictly richer -> replace
+                elif top_sim >= semantic.T_BAND_LOW:
+                    if decide is None:
+                        # No decider on this path: only exact-tier certainty acts.
+                        # >=T_SAME -> treat as duplicate; band -> plain ADD.
+                        if top_sim >= semantic.T_SAME:
+                            return ("duplicate", None)
                     else:
-                        return ("duplicate", None)
-                # Tier 3 — ambiguity band -> one small-model decision.
-                elif top_sim >= semantic.T_BAND_LOW and decide is not None:
-                    band = [(s, e) for s, e in sims[:DECISION_TOP_K] if s >= semantic.T_BAND_LOW]
-                    raw = await decide(content, [e.content for _, e in band])
-                    action, idx = semantic.parse_decision(raw, len(band))
-                    if action == "none":
-                        return ("duplicate", None)
-                    if action == "supersede":
-                        target = band[idx][1]
-                        if semantic.may_supersede(observed_at, target.observed_at):
-                            supersede_target = target
-                        # guard refused -> fall through to plain ADD
+                        # Tier 3 — one small-model decision. NOTE: >=T_SAME is
+                        # included deliberately — near-identical phrasing can be
+                        # a contradiction ("three bullets" -> "five bullets"
+                        # embeds ~identically); "same meaning -> NONE" in the
+                        # prompt handles true duplicates.
+                        band = [(s, e) for s, e in sims[:DECISION_TOP_K] if s >= semantic.T_BAND_LOW]
+                        raw = await decide(content, [e.content for _, e in band])
+                        action, idx = semantic.parse_decision(raw, len(band))
+                        if action == "none":
+                            return ("duplicate", None)
+                        if action == "supersede":
+                            target = band[idx][1]
+                            if semantic.may_supersede(observed_at, target.observed_at):
+                                supersede_target = target
+                            # guard refused -> fall through to plain ADD
         except Exception:
             _digit.log.warning("semantic gate failed (degrading to ADD)", exc_info=True)
             supersede_target = None
