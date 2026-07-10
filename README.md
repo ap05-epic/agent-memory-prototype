@@ -30,6 +30,7 @@ docs/
   UNDERSTANDING_THE_SYSTEM.md # ★ YOUR ground-up map: concepts, message trace, the story, Q&A
   TECHNICAL_DEEP_DIVE.md      # ★ engineering reference: every file, edit, decision (v1 + v2 addendum)
   DEMO_WALKTHROUGH.md         # ★ the demo narrated step-by-step, with what you see
+  DEMO_FLOWS.md               # ★ exact conversations to type (smoke test + showcase) + memory-clear commands
   DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
