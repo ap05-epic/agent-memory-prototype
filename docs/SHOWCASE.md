@@ -57,7 +57,7 @@ flowchart TD
 - **Everything degrades safely.** Embedder down → recall falls back to recent-first. Decision model fails → the write becomes a plain add. Database hiccup → the turn proceeds without memory. **There is no code path where memory breaks a turn.**
 - **Memory is subordinate to the user.** Recalled text is framed as background data — never instructions — and if it conflicts with what the user says now, the user wins. (A deliberate difference from single-user assistants.)
 - **Calibrated from evidence, not guesses.** The write-gate emits one content-free telemetry line per write; the decision threshold was tuned from measured live values (a real changed-preference scored 0.309 similarity on our embedder — literature-derived thresholds would have missed it, and initially did).
-- **Grounded in prior art.** The lifecycle follows Hermes Agent; the Postgres-rows substrate matches Letta; the extraction and update rules adapt mem0; the supersede-with-history pattern is Zep's enterprise approach. Sourced survey: `research/INDUSTRY_PRACTICES.md`.
+- **Grounded in prior art.** The lifecycle follows Hermes Agent; the Postgres-rows substrate matches Letta; the extraction and update rules adapt mem0; the supersede-with-history pattern is Zep's enterprise approach. Sourced survey: `INDUSTRY_PRACTICES.md` (alongside this doc).
 
 ---
 
@@ -93,4 +93,6 @@ flowchart TD
 
 ## Where the depth lives
 
-- `DESIGN_V2.md` — every v2 decision and why · `TECHNICAL_DEEP_DIVE.md` — the full as-built reference · `research/INDUSTRY_PRACTICES.md` — the sourced industry survey · `DEMO_WALKTHROUGH.md` — the demo, narrated.
+- **`TECHNICAL_DEEP_DIVE.md`** (alongside this doc) — the full as-built engineering reference: every file, every harness touch point, every decision and its rationale.
+- **`INDUSTRY_PRACTICES.md`** (alongside this doc) — the sourced survey of how ChatGPT, Claude, Gemini, Letta, mem0, and Zep handle retention, vector retrieval, and updates — and what this design adopted from each.
+- Further working documents (design records, demo runbooks, build history) live in the project working repository.

@@ -2,7 +2,7 @@
 
 > Audience: **you** (and any engineer who inherits this). This is the "know exactly what we did and how" document. It covers every file, every harness edit, every design decision, and why. If you can read this, you can answer any question about the system.
 >
-> **Covers v1 (core memory) AND v2 (semantic retrieval + supersede — live-accepted).** Sections 1–14 describe the core; the **v2 addendum** (after §8) describes what changed on top. For the friendlier ground-up version of all of this, read `UNDERSTANDING_THE_SYSTEM.md`; for v2 design rationale, `DESIGN_V2.md`.
+> **Covers v1 (core memory) AND v2 (semantic retrieval + supersede — live-accepted).** Sections 1–14 describe the core; the **v2 addendum** (after §8) describes what changed on top. Companion docs alongside this one: `SHOWCASE.md` (the accessible overview) and `INDUSTRY_PRACTICES.md` (the sourced survey behind the design choices). Further working documents live in the project working repository.
 
 ---
 
@@ -238,6 +238,10 @@ Extraction needs an LLM, but the harness has no raw internal client. The idiomat
 
 ## 11. How it was verified
 
+**v2 verification (semantic + supersede):** `scripts/verify_phase_c.py` — 12 deterministic checks using a stub embedder (vector packing, similarity math, decision parsing with range validation, embedded writes, the same-fact fast path, supersede with the chain recorded, the event-time guard, relevance-blended recall, embedder-down degradation, the decision-floor skip, and the forget cascade) plus a live-embedder check. Live acceptance on the real backend: relevance-ranked recall (topical question beat newer memories), the supersede chain visible in the database (`retired=true` + `superseded_by` set, telemetry line `memory gate: top_sim=0.309 tier=decide action=supersede`), post-supersede recall following the newest preference, and per-user isolation.
+
+**v1 verification (core):**
+
 - **`scripts/verify_phase_a.py`** → `PHASE_A: PASS` (7/7): add, dedup, fence-strip, denylist, render, soft-delete, tables exist — against the real DB.
 - **`scripts/verify_phase_b.py`** → `PHASE_B: PASS`: parser leniency + a live extraction that writes a `source='extraction'` row.
 - **Live acceptance (2026-07-07):** save → row → restart → new-thread recall (3-bullet format honored) → user-b isolation → flag-off agent writes nothing → live extraction row → chit-chat writes nothing. All passed on the real backend.
@@ -254,7 +258,7 @@ Extraction needs an LLM, but the harness has no raw internal client. The idiomat
 | **Letta** (MemGPT) | proof that per-agent memory as ordinary Postgres rows with char caps and org scoping is the mature pattern; the `version` optimistic-lock column. |
 | **mem0** | the extraction pipeline and prompt rules; the user/agent/run scoping model; the insight that our append-only + soft-delete log already *is* the audit trail. |
 
-Full source-level notes: `docs/research/REFERENCE_NOTES.md`.
+The sourced industry survey (retention, vector engineering, update pipelines across ChatGPT/Claude/Gemini/Letta/mem0/Zep) is `INDUSTRY_PRACTICES.md`, alongside this doc; deeper source-level reading notes live in the project working repository.
 
 ---
 

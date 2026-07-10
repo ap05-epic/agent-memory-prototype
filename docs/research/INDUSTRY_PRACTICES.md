@@ -77,3 +77,15 @@
 | Blend relevance + recency, with a min-similarity floor | 0.7/0.3 blend, floor ≈0.35, cap ~20 |
 | Consolidation off the write path, originals kept with provenance | threshold-triggered background fold into the user-model doc; folded rows soft-discarded with `superseded_by` → the summary |
 | Profile synthesis as the destination (ChatGPT dreaming, Claude, Gemini) | the reserved `agent_memory_user_models` table is exactly this |
+
+---
+
+## 5. Post-implementation note — what the build confirmed
+
+The survey's predictions held up under live verification, one of them the hard way:
+
+- **"Thresholds are embedding-model-specific — never port a number without calibration"** was proven *twice*: both a literature-style similarity band (0.70–0.95) and a conservatively lowered floor (0.50) failed to catch a genuine changed-preference contradiction, which **measured cosine 0.309** on `text-embedding-3-large` @ 1536 dims. The shipped design therefore adjudicates anything above a **measured 0.30 floor** with the decision model on decider-enabled paths, and emits one content-free telemetry line per write (`memory gate: top_sim=… tier=… action=…`) so all future tuning is data-driven. Short paraphrased facts score far lower than entity-dedup literature suggests.
+- **The no-ANN-index recommendation** (exact scan within a heavily filtered scope; Letta's production posture) shipped as designed and performs in single-digit milliseconds at prototype scale.
+- **The supersede pattern** (Zep-style invalidate-don't-delete) is live: contradictions produce a `superseded_by` chain, verified end to end on the real backend.
+- **mem0's hot-path caution** shaped the failure semantics: every decision failure degrades to a plain ADD, which live operation exercised and confirmed harmless.
+- **Two-stage deletion** is implemented at stage one (soft-delete + one-call per-user cascade); the scheduled hard-purge window remains, as this survey framed it, a governance decision.
