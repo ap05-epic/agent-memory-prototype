@@ -10,9 +10,10 @@ from datetime import datetime, timezone
 import re
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import _digit, semantic
-from .models import USE_PGVECTOR, MemoryEntry
+from .models import EMBED_DIM, USE_PGVECTOR, MemoryEntry
 
 MAX_ENTRY_CHARS = 500
 DEDUP_WINDOW = 20
@@ -209,7 +210,7 @@ async def smart_add_entry(
             gate_note = "gate-exception"
     _digit.log.info("memory gate: %s scope=%s/%s", gate_note, profile_id, user_id)
 
-    entry = MemoryEntry(
+    entry_fields = dict(
         profile_id=profile_id,
         user_id=user_id,
         tenant_id=tenant_id,
@@ -218,8 +219,39 @@ async def smart_add_entry(
         source=source,
         thread_id=thread_id,
         observed_at=observed_at,
-        embedding=_store_embedding(new_vec),
     )
+    embed_value = _store_embedding(new_vec)
+    try:
+        entry = await _persist(entry_fields, embed_value, supersede_target)
+    except SQLAlchemyError:
+        # The embedding write failed — almost always a vector/bytea column-type
+        # mismatch from an env-drift process sharing a DB whose 'embedding'
+        # column was created by a differently-configured process. Never fail
+        # the whole save on this: persist the content without the embedding so
+        # the tool succeeds and the demo stays clean.
+        if embed_value is None:
+            raise  # not an embedding problem — surface it
+        _digit.log.warning(
+            "memory insert failed with embedding (USE_PGVECTOR=%s dim=%s); retrying "
+            "without embedding — check AGENT_FACTORY_MEMORY_PGVECTOR matches the "
+            "embedding column type across all processes on this DB",
+            USE_PGVECTOR, EMBED_DIM, exc_info=True,
+        )
+        entry = await _persist(entry_fields, None, supersede_target)
+    _digit.log.info(
+        "memory add id=%s source=%s superseded=%s scope=%s/%s",
+        entry.id, source, bool(supersede_target), profile_id, user_id,
+    )
+    return (("superseded_old" if supersede_target else "saved"), entry.id)
+
+
+async def _persist(entry_fields: dict, embed_value, supersede_target) -> "MemoryEntry":
+    """Insert one entry (+ optional supersede) in a fresh session. Isolated so
+    the caller can retry with embed_value=None if the embedding write itself
+    fails — the memory content must persist even when the vector column and the
+    process's USE_PGVECTOR flag disagree (env drift across processes sharing one
+    DB). This is the write-path counterpart to embed()'s degrade-to-None rule."""
+    entry = MemoryEntry(**entry_fields, embedding=embed_value)
     async with _digit.get_session() as session:
         session.add(entry)
         await session.flush()
@@ -230,11 +262,7 @@ async def smart_add_entry(
                 .values(discarded_at=datetime.now(timezone.utc), superseded_by=entry.id)
             )
         await session.commit()
-    _digit.log.info(
-        "memory add id=%s source=%s superseded=%s scope=%s/%s",
-        entry.id, source, bool(supersede_target), profile_id, user_id,
-    )
-    return (("superseded_old" if supersede_target else "saved"), entry.id)
+    return entry
 
 
 async def discard_entry(entry_id: str) -> bool:
