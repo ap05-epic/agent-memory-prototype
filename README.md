@@ -32,6 +32,9 @@ docs/
   DEMO_WALKTHROUGH.md         # ★ the demo narrated step-by-step, with what you see
   DEMO_FLOWS.md               # ★ exact conversations to type (smoke test + showcase) + memory-clear commands
   DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
+  # ── Productionization (post-review program) ──────────────────
+  briefs/W0_BRANCH_MIGRATION.md # gated runbook: re-base onto current dev as feature/agentmemory-v3
+  recon/RECONCILIATION_NOTES.md # transfer repo == deployed pod state (single authoring base)
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
   KNOWN_ISSUES.md             # local tool-calling loop — diagnosis, isolation steps, workaround
@@ -68,10 +71,13 @@ Done:
 
 - [x] **Memory v2 LIVE-ACCEPTED end to end (pgvector semantic recall + supersede chains):** all gates PASS on pod, live beats green — topical recall beats recency, supersede chain in DB (`superseded_by` + retired old row), post-supersede recall follows the newest preference, isolation intact. Decision floor **live-calibrated to 0.30** via the gate's telemetry (real contradiction measured top_sim=0.309 on 3-large@1536). Design: `docs/DESIGN_V2.md` · brief: `docs/IMPLEMENTATION_BRIEF_V2.md`
 
-Open (all optional / follow-up):
-- [ ] Rehearse `DEMO_RUNBOOK.md` (+ add v2 beats: semantic recall, live supersede), then demo to Subomi
-- [ ] Send Subomi the requested package: `SHOWCASE.md` + `DESIGN_V2.md` + `research/INDUSTRY_PRACTICES.md`
+**Now: productionization** (Subomi's merge review → 7 workstreams, two merge milestones; branch re-based as `feature/agentmemory-v3` off current dev):
+- [ ] W0 branch migration — run `docs/briefs/W0_BRANCH_MIGRATION.md` on the pod (gated, Copilot-driven)
+- [ ] W1 deployment path (migrations pending Subomi's Alembic-vs-scoped answer) · W5 harness-managed lifecycle · W6 identity hardening → merge-candidate 1
+- [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
+
+Open (optional / follow-up):
 - [ ] v2 pillar 3: consolidation into the user-model doc (designed, not yet built)
-- [ ] Retention purge-job proposal (designed in DESIGN_V2 §3, needs governance input)
+- [ ] Retention purge-job proposal (designed in DESIGN_V2 §3, folds into W2)
 - [ ] Karan sync (scoping / tenant / prod-DDL / retention)
 - [ ] Nice-to-haves: save-chip wording polish, learn indicator (both in `docs/INDICATORS.md`, neither needed)
