@@ -33,7 +33,7 @@ docs/
   DEMO_FLOWS.md               # ★ exact conversations to type (smoke test + showcase) + memory-clear commands
   DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
   # ── Productionization (post-review program) ──────────────────
-  briefs/W0_BRANCH_MIGRATION.md # gated runbook: re-base onto current dev as feature/agentmemory-v3
+  briefs/W0_BRANCH_MIGRATION.md # gated runbook: fresh clone of current dev (two-folder), work ported as feature/agentmemory-v3
   recon/RECONCILIATION_NOTES.md # transfer repo == deployed pod state (single authoring base)
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
