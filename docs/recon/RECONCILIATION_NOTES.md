@@ -24,12 +24,16 @@ this repo are semantically identical as of branch commit `c4336de`
    edits were made surgically on-pod without a bump, and the off-pod
    `07-09.6` bump was never pulled. The next pod sync picks up this marker.
 
-## OCR ambiguities (resolved by judgment; confirm on next pod session if bored)
+## OCR ambiguities — RESOLVED by the W0 GATE 3 parity diff (real git diff, no OCR)
 
-- `EMBED_TIMEOUT_SECONDS` read as `5.6` in the dump — kept `5.0`
-  (0/6 glyph confusion; no commit touched it).
-- The dump truncated inside `memory.learned`'s `payload_schema` — mirrored
-  `memory.recalled`'s shape (`count` required, optional `summary`). Harmless
-  either way; the schema is declarative.
-- Code comments are best-effort reconstructions where OCR mangled them;
-  all executable lines were cross-checked against round 6's clean A3 quotes.
+- `EMBED_TIMEOUT_SECONDS = 5.0` confirmed correct (parity flagged nothing in
+  `_digit.py` beyond the BUILD line).
+- `memory.learned` payload has **no** `summary` property on the pod — the
+  mirrored guess was removed here.
+- Comment reconstructions replaced with the pod's verbatim text from the
+  GATE 3 hunks (`semantic.py` threshold block + `T_DECIDE_FLOOR` line,
+  `store.py` SQLAlchemyError block — which really does contain
+  `(USE_PGVECTOR=%s, dim=%s)` in the comment — and the yaml model/ui blocks).
+- Package parity at GATE 3: `_digit.py` differed only at the BUILD line
+  (synced on-pod as commit `2fc2dbb`); all other diffs were comment-only and
+  are now back-ported, so the next parity check should be exact.

@@ -225,10 +225,10 @@ async def smart_add_entry(
         entry = await _persist(entry_fields, embed_value, supersede_target)
     except SQLAlchemyError:
         # The embedding write failed — almost always a vector/bytea column-type
-        # mismatch from an env-drift process sharing a DB whose 'embedding'
-        # column was created by a differently-configured process. Never fail
-        # the whole save on this: persist the content without the embedding so
-        # the tool succeeds and the demo stays clean.
+        # mismatch from an env-drift process (USE_PGVECTOR=%s, dim=%s) sharing a
+        # DB whose `embedding` column was created by a differently-configured
+        # process. Never fail the whole save on this: persist the content
+        # without the embedding so the tool succeeds and the demo stays clean.
         if embed_value is None:
             raise  # not an embedding problem — surface it
         _digit.log.warning(

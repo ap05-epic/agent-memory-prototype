@@ -14,7 +14,7 @@ model:
   default: gpt-5.4-mini
   provider: openai
   # none: "remember X" needs no reasoning at all. low/minimal still let the
-  # model balloon reasoning tokens (47s vs 130s+ swings); 'none' disables the
+  # model balloon reasoning tokens (47s vs 130s + swings); 'none' disables the
   # reasoning pass entirely for short, consistent demo turns.
   # (valid gpt-5.4-mini efforts: none | low | medium | high | xhigh)
   reasoning_effort: none
@@ -56,10 +56,9 @@ ui:
   fallback_renderer: text
   # --- Memory indicators (see docs/INDICATORS.md) ---------------------------
   # These declare the custom events the recall/extraction indicators emit.
-  # The console renders them via the named renderer. The primary indicator
-  # still rides the built-in run.status event; these declarations back the
-  # console-side memory.recalled / memory.learned handling (the ui_event_tool
-  # guard in c4336de reserves both names as harness-owned).
+  # The console renders them via the named renderer. Renderer names below are
+  # placeholders pending recon (which renderers the console ships) — confirm
+  # before relying on them; the feature works without them (fallback_renderer).
   stream_events:
     - event: memory.recalled
       description: Emitted at turn start when stored memories were injected.
@@ -83,5 +82,3 @@ ui:
         properties:
           count:
             type: integer
-          summary:
-            type: string
