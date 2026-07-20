@@ -31,6 +31,7 @@ docs/
   TECHNICAL_DEEP_DIVE.md      # ★ engineering reference: every file, edit, decision (v1 + v2 addendum)
   DEMO_WALKTHROUGH.md         # ★ the demo narrated step-by-step, with what you see
   DEMO_FLOWS.md               # ★ exact conversations to type (smoke test + showcase) + memory-clear commands
+  TEAM_WALKTHROUGH.md         # ★ presenter's script for the team demo: beats, spoken tour, Q&A prep
   DESIGN_REVIEW_AND_ROADMAP.md# ★ one-page design + roadmap for a design-review meeting
   # ── Productionization (post-review program) ──────────────────
   briefs/W0_BRANCH_MIGRATION.md # gated runbook: fresh clone of current dev (two-folder), work ported as feature/agentmemory-v3
