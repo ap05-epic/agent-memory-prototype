@@ -77,7 +77,7 @@ Done:
 **Subomi's decisions (locked):** Alembic in the harness ("memory schema is harness production infrastructure"; create_all = local/test bootstrap only, deployed envs migrate explicitly) · two merge candidates as proposed · **condition: MC1 ships memory off-by-default/demo-only; enabled persistent memory waits for MC2** (already structurally true — flag defaults false, only the test fixture enables it; make explicit in MC1 packaging + guard test).
 - [ ] W5 harness-managed lifecycle — **running on pod**: `docs/briefs/W5_HARNESS_LIFECYCLE.md` (GATE 0 findings: both Database helpers read AGENT_FACTORY_DATABASE_URL → wire to database.session_factory; plain-pytest w/ asyncio.run)
 - [ ] W1 Alembic — **brief ready**: `docs/briefs/W1_ALEMBIC_DEPLOYMENT.md` (full-schema baseline revision incl. memory tables, stamp-adopt dev DB, alembic check receipt, MIGRATIONS.md, create_all demoted; run after W5)
-- [ ] W6 identity hardening (round-7 code pinned: single enforce_profile_access call site) → completes merge-candidate 1
+- [ ] W6 identity hardening — **brief ready**: `docs/briefs/W6_IDENTITY_HARDENING.md` (memory_identity_ok predicate at the three runner sites; no default-tenant writes; off-by-default guard test = the MC1 condition receipt; run after W1) → completes merge-candidate 1
 - [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
 
 Open (optional / follow-up):
