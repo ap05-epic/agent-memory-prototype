@@ -74,7 +74,8 @@ Done:
 
 **Now: productionization** (Subomi's merge review → 7 workstreams, two merge milestones; branch re-based as `feature/agentmemory-v3` off current dev):
 - [x] **W0 branch migration COMPLETE** — all 7 gates passed. `origin/feature/agentmemory-v3` pushed (tip `2fc2dbb`, cut from dev `7fa86f5`); one guided conflict (sdk_runner.py) resolved; package parity proven; verify scripts PASS from the new clone; live smoke on port 8081 showed `build=2026-07-16.7-reconciled` + "🧠 Recalled 4 saved memories" + reply reciting stored facts + `extraction wrote=0` negative control; old folder received zero writes. Punch list: v3 `.env` line 3 still carries the old folder's `AGENT_FACTORY_PROFILE_PATHS` (launches override it; fix during W5); console `npm install` deferred until a workstream needs the console.
-- [ ] W1 deployment path (migrations pending Subomi's Alembic-vs-scoped answer) · W5 harness-managed lifecycle · W6 identity hardening → merge-candidate 1
+- [ ] W5 harness-managed lifecycle — **brief ready**: `docs/briefs/W5_HARNESS_LIFECYCLE.md` (seam-injected session factory, side-call parity, test slice; round-7-anchored)
+- [ ] W1 deployment path (migrations pending Subomi's Alembic-vs-scoped answer) · W6 identity hardening (round-7 code pinned: single enforce_profile_access call site) → merge-candidate 1
 - [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
 
 Open (optional / follow-up):
