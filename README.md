@@ -72,7 +72,7 @@ Done:
 - [x] **Memory v2 LIVE-ACCEPTED end to end (pgvector semantic recall + supersede chains):** all gates PASS on pod, live beats green — topical recall beats recency, supersede chain in DB (`superseded_by` + retired old row), post-supersede recall follows the newest preference, isolation intact. Decision floor **live-calibrated to 0.30** via the gate's telemetry (real contradiction measured top_sim=0.309 on 3-large@1536). Design: `docs/DESIGN_V2.md` · brief: `docs/IMPLEMENTATION_BRIEF_V2.md`
 
 **Now: productionization** (Subomi's merge review → 7 workstreams, two merge milestones; branch re-based as `feature/agentmemory-v3` off current dev):
-- [ ] W0 branch migration — run `docs/briefs/W0_BRANCH_MIGRATION.md` on the pod (gated, Copilot-driven)
+- [x] **W0 branch migration COMPLETE** — all 7 gates passed. `origin/feature/agentmemory-v3` pushed (tip `2fc2dbb`, cut from dev `7fa86f5`); one guided conflict (sdk_runner.py) resolved; package parity proven; verify scripts PASS from the new clone; live smoke on port 8081 showed `build=2026-07-16.7-reconciled` + "🧠 Recalled 4 saved memories" + reply reciting stored facts + `extraction wrote=0` negative control; old folder received zero writes. Punch list: v3 `.env` line 3 still carries the old folder's `AGENT_FACTORY_PROFILE_PATHS` (launches override it; fix during W5); console `npm install` deferred until a workstream needs the console.
 - [ ] W1 deployment path (migrations pending Subomi's Alembic-vs-scoped answer) · W5 harness-managed lifecycle · W6 identity hardening → merge-candidate 1
 - [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
 
