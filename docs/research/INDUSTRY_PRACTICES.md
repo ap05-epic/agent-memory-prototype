@@ -53,6 +53,8 @@
 
 **Letta.** Exact-substring block edits (auditable diffs) + `rethink_memory` whole-block rewrites, driven by a background **sleep-time agent every ~5 turns**, bounded by block char limits and "not every observation warrants an edit."
 
+**LangChain deepagents (2026).** LangChain's deep-agents framework treats memory as *files* on a namespace-partitioned store (LangGraph Store API): agent-scoped `(assistant_id,)` shared-persona memory, user-scoped `(user.identity,)` ("User A's preferences never leak into User B"), and org-scoped **read-only** namespaces; files are injected into the **system prompt** at startup (or loaded on demand), edited via an `edit_file` tool, and a separate consolidation agent runs on a **cron schedule** to merge learnings between conversations, with past threads searchable for episodic lookup. Their own caveats: concurrent memory-file writes are last-write-wins (our append-only + supersede chain avoids that class), and shared memory is marked read-only specifically to limit prompt injection — while their *default* injection channel is still the system prompt, which our design fences as non-authoritative data and is moving out of the instruction channel entirely. ([docs](https://docs.langchain.com/oss/python/deepagents/memory))
+
 **ChatGPT "dreaming" (2026).** Background consolidation replacing static saved memories: rewrites a running user profile from past conversations, including temporal revision ("planned trip" → "went in August"). Press-verified; internals opaque. Strong validation that **profile synthesis is where the industry is heading**.
 
 **Thresholds in practice.** mem0: 0.95 cosine = same-entity fast path; hash equality = exact duplicate; decision context top-k 10. Neo4j's agent-memory guidance is tiered and domain-tuned — **finserv: auto-merge 0.98, review-band from 0.90** ("start conservative"). All thresholds are embedding-model-specific — calibrate, never port blindly.
@@ -75,7 +77,9 @@
 | Exact scan, no ANN index at filtered small scale (Letta) | b-tree scope filter + exact cosine; HNSW documented as growth step |
 | Nullable embedding + backfill | adopted |
 | Blend relevance + recency, with a min-similarity floor | 0.7/0.3 blend, floor ≈0.35, cap ~20 |
-| Consolidation off the write path, originals kept with provenance | threshold-triggered background fold into the user-model doc; folded rows soft-discarded with `superseded_by` → the summary |
+| Consolidation off the write path, originals kept with provenance | threshold-triggered background fold into the user-model doc; folded rows soft-discarded with `superseded_by` → the summary (deepagents' cron consolidation agent is the same shape — convergent) |
+| Namespace scopes incl. shared read-only tiers (deepagents agent/org scopes) | per-user only by design today; tenant-shared read-only memory noted as a governance-gated future idea |
+| On-demand memory loading vs always-inject (deepagents skills pattern) | candidate for the MC2 injection-boundary design (load summaries, fetch full content when relevant) |
 | Profile synthesis as the destination (ChatGPT dreaming, Claude, Gemini) | the reserved `agent_memory_user_models` table is exactly this |
 
 ---
