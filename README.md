@@ -79,6 +79,12 @@ Done:
 - [x] **W1 Alembic COMPLETE** — commit `5a2956e` on v3. Receipts: baseline `5258f2433fcb` (all 11 tables incl. memory, `vector(1536)`, extension guard) verified offline then adopted on the shared dev DB via one-time stamp (single bookkeeping row = only real-DB write); `alembic check`: no new upgrade operations after scoping env.py to harness-owned tables (studio_* = another app, agent_sessions/agent_messages = SDK-owned, both deliberately unmanaged). **Finding for the team:** hand-applied unique index `ix_agent_runs_one_active_per_thread` on agent_runs exists in the DB with no owner in code — documented in MIGRATIONS.md, decision pending. create_all demoted to local/test bootstrap; 4-test no-DB slice green.
 - [x] **W6 identity hardening COMPLETE** — commit `938de17` on v3. Receipts: full-identity turn under tenant `t-demo` saved + recalled with correct isolation from old default-tenant rows; tenant-less turn ran normally with exactly one "memory identity gate: disabled for turn" line and zero memory operations; off-by-default guard test enforces the MC1 condition; suite 333 passed / same 2 pre-existing failures.
 - **★ MERGE-CANDIDATE 1 READY** — `docs/MC1_PACKAGE.md`: MR title+description (plain wording), findings→receipts crib sheet, Subomi message, GitLab steps. Branch `feature/agentmemory-v3` @ `938de17`.
+
+**MC2 (production memory behavior — Subomi's list 2):**
+- Round 8 recon DONE: SDK 0.17.7 accepts list input; input items NOT persisted to session history (duplication risk dead); ProfileHealthMonitor = the W4 worker template; W2 route/auth/proxy/event templates quoted; memory.recalled/learned already reserved as harness-owned UI event names.
+- [ ] W3 injection boundary — **brief ready**: `docs/briefs/W3_INJECTION_BOUNDARY.md` (probe gate, instructions append removed, fenced user-role input item on fresh turns only, zero-rows-in-history receipt)
+- [ ] W4 durable extraction (outbox + worker on the health-monitor pattern; Alembic revision 002) — brief after W3
+- [ ] W2 governed APIs + audit events + retention (+ console tenant plumbing) — brief after W4
 - [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
 
 Open (optional / follow-up):
