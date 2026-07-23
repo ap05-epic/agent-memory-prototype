@@ -3,6 +3,8 @@
 > Audience: **you** (and any engineer who inherits this). This is the "know exactly what we did and how" document. It covers every file, every harness edit, every design decision, and why. If you can read this, you can answer any question about the system.
 >
 > **Covers v1 (core memory) AND v2 (semantic retrieval + supersede — live-accepted).** Sections 1–14 describe the core; the **v2 addendum** (after §8) describes what changed on top. Companion docs alongside this one: `SHOWCASE.md` (the accessible overview) and `INDUSTRY_PRACTICES.md` (the sourced survey behind the design choices). Further working documents live in the project working repository.
+>
+> **⚠ Read Part III (end of this doc) for current state.** After the formal production review, four integration claims in the v1/v2 sections were superseded (sessions, migrations, tenant handling, injection channel). The package mechanics — schema, write gate, recall math, extraction — are unchanged and remain exact. Part III lists every correction and what shipped on `feature/agentmemory-v3`.
 
 ---
 
@@ -297,3 +299,31 @@ The sourced industry survey (retention, vector engineering, update pipelines acr
 - **recall / inject** — loading memories and adding them to the agent's instructions.
 - **extraction** — the automatic post-turn capture of durable facts.
 - **run.status** — a harness event the console renders as a status line; how our recall chip shows.
+
+---
+
+# Part III — Productionization (current state on `feature/agentmemory-v3`)
+
+The prototype went through the team lead's formal production review. Findings became workstreams; the foundation set is **done and in an open merge request** (branch `feature/agentmemory-v3`, cut from current dev, all original work re-applied commit-by-commit). This part corrects the claims above that the review work superseded, then describes what shipped.
+
+## Corrections to Part I / II claims
+
+| Where above | It says | Current truth |
+|---|---|---|
+| §"seam" / Q8 notes | the package keeps **its own engine** on the same database (deliberate prototype trade-off) | **Superseded (W5).** `create_app` now installs the harness's `Database.session_factory` into the seam (`install_session_factory`). In-app memory shares the app's pool and shutdown and creates **no engine of its own**; the private fallback engine exists only for standalone scripts. The server log proves the mode: "memory sessions: harness session factory installed" vs "fallback engine created (standalone mode)". |
+| §deployment / FAQ | dev DDL = `scripts/reset_dev_tables.py`; `create_all` disabled in dev | **Superseded (W1).** The harness now has **Alembic** (async setup). Revision `5258f2433fcb` is a reviewed baseline of the full schema — all harness tables including memory's two, with the pgvector extension guard. The dev DB adopted it via one-time `alembic stamp head` and `alembic check` reports **no drift**. Because the dev DB is shared, autogenerate is scoped to harness-owned tables (`studio_*` belongs to another app; `agent_sessions`/`agent_messages` are SDK-owned; one hand-applied index on `agent_runs` is documented and escalated). `create_all` remains for local/test bootstrap only; deployed environments run `alembic upgrade head`. See `MIGRATIONS.md` in the harness repo. `reset_dev_tables.py` is demoted to a local scratch tool — never against shared DBs. |
+| §schema / §security | `tenant_id` defaults to `'default'`; "writes tenant and does not yet filter" | **Superseded (W6).** Memory now requires a **validated `user_id` AND `tenant_id`** everywhere it operates (`security.memory_identity_ok`, applied at recall, extraction, and the tool-enabling run context — which gates `save_memory` with zero tool-side changes). Harness paths no longer default the tenant; missing identity ⇒ memory is disabled for that turn, fail-closed, one content-free log line ("memory identity gate: disabled for turn"). The column-level `'default'` default remains only for standalone scripts. Every read has always carried the full `(profile, user, tenant)` scope in SQL; now the tenant in it is real. Consequence: console traffic (no tenant yet) runs with memory off on this branch until the console tenant plumbing lands — aligned with the review condition that memory stays demo-only until the governed wave. |
+| §edits / recall | the block is appended to the agent's **instructions** | **In flight (W3, MC2).** The review moves recalled memory out of the instruction channel into a **separate input-list item** (a fenced user-role message ahead of the user's message, fresh turns only). Verified beforehand: the installed SDK accepts `input: list[...]` and does **not** persist input items into session history — so the injected item never lands in `agent_messages` and is re-injected fresh each turn. The fenced block content, 🧠 indicator, and identity gate are unchanged by the move. |
+| store.py section (if reading v2-era text) | persistence is a single inline insert | **Hardened.** Persistence went through `_persist(entry_fields, embed_value, supersede_target)`: if the INSERT fails on the embedding column (env-drift column-type mismatch across processes), it retries the same row **without** the vector — content always persists; the vector is an accelerator, not a dependency. |
+
+## What the review added (receipts exist for every line)
+
+1. **Re-base (W0):** fresh branch off current dev; five commits cherry-picked; one conflict (`sdk_runner.py`) resolved by keeping dev's structure and re-placing the three insertions. Old working copy untouched as the demo fallback.
+2. **Harness-managed DB lifecycle (W5):** seam installer + shared pool, above. Side-calls (`llm_complete`) aligned to the harness's `SdkSubagentExecutor` conventions (explicit model, tracing disabled, workflow name, trace metadata) and log token usage when the SDK exposes it (currently it doesn't — logged as None, stated honestly).
+3. **Real migrations (W1):** Alembic baseline + stamp + drift-free check, above. The only real-database write in that entire workstream was the single `alembic_version` bookkeeping row.
+4. **Identity hardening (W6):** `memory_identity_ok`, above. Live-proven with a matched pair of turns: full identity under tenant `t-demo` (save + recall worked; old `'default'`-tenant rows correctly did **not** appear — isolation), and a tenant-less turn (normal reply, one gate line, zero memory operations).
+5. **Tests (W7, ongoing):** ten new tests — session-factory injection/fallback/write-path, migration config + baseline content, identity truth table + context gating, and the **off-by-default guard**: a test that fails the build if any non-test profile enables `semantic_memory_enabled` (the merge condition, enforced in CI). Suite: 333 passing; 2 pre-existing dev failures, proven pre-existing at the pre-change commit.
+
+## What's next (designed — merge candidate 2)
+
+Input-channel injection (W3, in flight) · durable extraction via an outbox table + background worker on the harness's existing service pattern, covering all completion paths (W4) · governed memory APIs — view / delete / forget / disable per user — with audit events on the harness governance rails and retention windows (W2) · console tenant plumbing. Then the deferred long-term stage: consolidation into `agent_memory_user_models` (the "living user profile").
