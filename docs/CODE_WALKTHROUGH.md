@@ -2,7 +2,10 @@
 
 The engineering companion to [ARCHITECTURE.md](ARCHITECTURE.md). That document explains *what the system does* with diagrams; this one walks the actual code: what each file contains, what each function is for, why it is written the way it is, and exactly where the harness was touched.
 
-**Where the code lives.** The package is `src/agent_factory/memory/` on the harness (branch `feature/agentmemory-v3`). This repository mirrors it at `memory/` for authoring. Note the mirror currently lags the harness: `session_filter.py`, `outbox.py`, `retention.py` and the governance functions in `store.py` exist on the harness only, pending the next reconciliation.
+**Where the code lives.** The package is `src/agent_factory/memory/` on the harness (branch `feature/agentmemory-v3`). This repository mirrors it at `memory/` for authoring. Two caveats while reading:
+
+- The mirror lags the harness: `session_filter.py`, `outbox.py`, `retention.py` and the governance functions in `store.py` exist on the harness only, pending the next reconciliation.
+- **Commit status differs by section.** Everything through §9 is committed and pushed. §10 (retention) and the governance functions in §4 are implemented but uncommitted, with a known fix outstanding in their API layer — see the open item in [ARCHITECTURE.md §13](ARCHITECTURE.md). The merge-request branch `feature/agentmemory-mc1` contains none of §7–§10; it stops at the identity work.
 
 ---
 

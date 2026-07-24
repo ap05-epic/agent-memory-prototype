@@ -1,4 +1,18 @@
-# Known Issues — Local Tool-Calling Loop
+# Known Issues
+
+## Open
+
+**1. Governance endpoints run on the wrong event loop.** The candidate-2 memory routes were written as synchronous `def` handlers bridging into async store calls. FastAPI runs sync handlers in a worker thread, so the bridge creates a second event loop, and a connection borrowed from the app's pool then fails with `got Future attached to a different loop`. It also briefly disturbed the outbox worker sharing that pool. **Fix:** declare the routes `async def` and `await` the store functions directly — no `asyncio.run`, no thread bridge, anywhere in the route path. The affected work is uncommitted on `feature/agentmemory-v3` and is in no merge request.
+
+**2. One unexplained SDK session transient.** During the outbox work, a single turn failed with `InterfaceError: connection is closed` on the SDK's `agent_sessions` table. It never reproduced across repeated runs. Most likely cause: the harness's own `Database` sets `pool_pre_ping=True`, while the SDK's `SQLAlchemySession.from_url` engine does not, so a dropped pooled connection surfaces exactly this way. SDK-side and harness-wide rather than memory-specific. Recorded rather than fixed, because we could not reproduce it.
+
+**3. Two pre-existing test failures on dev.** `test_turn_stream_custom_mcp_reaches_sdk_agent` (test double missing the newer `manifest_path` kwarg) and `test_turn_service_immediate_stream_does_not_block_on_event_journal` (event-journal wait timeout). Both reproduce at the pre-change baseline commit, so they belong to dev, not to this feature. Documented in the merge request rather than fixed.
+
+**4. Undocumented database constraint.** The shared dev database carries a hand-applied unique index `ix_agent_runs_one_active_per_thread` on `agent_runs` that no code creates. Left untouched, excluded from migration management, definition recorded in `MIGRATIONS.md`, and escalated to the team for a decision.
+
+---
+
+## Resolved — Local Tool-Calling Loop
 
 > ✅ **RESOLVED (2026-07-08).** False alarm — tool calling works. The intermittent stalls were traced (per the team lead) to differences between the older console interface and the newer official DIGIT UI, not to the harness, the tools, or the Azure endpoint. The team offered setup scripts/guidance for a dev environment closer to the team's primary configuration. The known-good launch recipe below remains the reference for local runs. The diagnosis content is kept for future reference.
 

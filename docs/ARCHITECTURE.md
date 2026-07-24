@@ -314,11 +314,16 @@ flowchart LR
 | Harness-managed DB lifecycle | Done — no private engine in-app |
 | Identity and tenant hardening | Done — fail-closed |
 | Test coverage incl. off-by-default guard | Done |
-| **Merge candidate 1 (foundation)** | **In review** |
+| **Merge candidate 1 (foundation)** | **In review** — branch `feature/agentmemory-mc1` |
 | Recall out of the instruction channel | Done |
 | Durable extraction (outbox + worker) | Done |
-| Governed APIs, audit events, retention, console tenant | Next |
+| Governed APIs, audit events, retention | Built; API layer being fixed (see below) |
+| Console tenant plumbing | Next — this is what re-enables memory in the console |
 | Consolidation into per-user profiles | Designed, deferred |
+
+**Branch topology.** `feature/agentmemory-mc1` is a frozen snapshot of the foundation work, open as a merge request; nothing new lands on it. All candidate-2 work continues on `feature/agentmemory-v3`, so pushes there cannot disturb the review.
+
+**Known open item.** The governance endpoints are implemented and their migration is applied, but the routes were written as synchronous handlers bridging into async store calls, which creates a second event loop and breaks connections borrowed from the app's pool (`got Future attached to a different loop`). The fix is to declare the routes `async def` and await the store functions directly. That work is uncommitted on `feature/agentmemory-v3` and is not in any merge request.
 
 ## 14. Glossary
 
