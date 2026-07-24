@@ -80,19 +80,45 @@ flowchart TD
 | Update-instead-of-duplicate (supersede chains) | ✅ built, live-verified |
 | Automated gates | ✅ 3 suites, all passing on the pod |
 | Demo | ✅ rehearsable runbook, 9 beats |
+| **Production review response** | see below |
+
+### Production hardening (after the formal review)
+
+The prototype was reviewed by the team lead, and the response was split into two merge candidates.
+
+**Merge candidate 1 — foundation. Complete, in review.**
+
+| | |
+|---|---|
+| Re-based onto current dev (branch `feature/agentmemory-v3`) | ✅ |
+| Real migrations — Alembic, reviewed baseline, verified drift-free | ✅ |
+| Harness-managed DB lifecycle — no private engine in-app | ✅ |
+| Model-call conventions aligned with the harness's own | ✅ |
+| Identity hardening — validated user **and** tenant, fail-closed | ✅ |
+| Tests, including the guard that keeps memory off by default | ✅ |
+
+**Merge candidate 2 — production behaviour. In progress.**
+
+| | |
+|---|---|
+| Recalled memory out of the instruction channel, into the data channel | ✅ built, live-verified |
+| Durable extraction — outbox table + background worker, survives restarts | ✅ built, live-verified |
+| Governed APIs (view / delete / forget / disable), audit events, retention | next |
+| Console tenant plumbing (re-enables memory for console traffic) | next |
 
 ---
 
 ## What's deliberately next (designed, not yet built)
 
-1. **Consolidation** — periodically fold many small memories into a compact per-user profile (the second table has been reserved for this from day one). Keeps injected context bounded forever.
-2. **Retention policy** — the two-stage deletion proposal (soft-delete now → scheduled hard purge) needs a governance decision on the window; a metrics query ships for a data-driven discussion.
+1. **Governed memory APIs and retention** — user-facing view/delete/forget/disable with audit events on the harness's governance rails, retention windows, and the scheduled hard purge that completes the two-stage deletion story.
+2. **Consolidation** — periodically fold many small memories into a compact per-user profile (the second table has been reserved for this from day one). Keeps injected context bounded forever.
 3. **Phase 2: the self-improving skills loop** — the post-turn seam was built to be shared by a future reviewer that authors/refines skills from the same turns. Open design questions: durable skill storage and approval-gating (a skill changes behavior for all of an agent's users).
 
 ---
 
 ## Where the depth lives
 
+- **`ARCHITECTURE.md`** (alongside this doc) — **start here for the whole system**: diagrams of the turn lifecycle, the write gate, the data model, the outbox, the identity gate, and the migration flow, plus configuration and failure-mode tables.
 - **`TECHNICAL_DEEP_DIVE.md`** (alongside this doc) — the full as-built engineering reference: every file, every harness touch point, every decision and its rationale.
 - **`INDUSTRY_PRACTICES.md`** (alongside this doc) — the sourced survey of how ChatGPT, Claude, Gemini, Letta, mem0, and Zep handle retention, vector retrieval, and updates — and what this design adopted from each.
 - Further working documents (design records, demo runbooks, build history) live in the project working repository.

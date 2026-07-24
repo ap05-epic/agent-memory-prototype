@@ -26,6 +26,8 @@ profiles/
   memory-demo/                # purpose-built demo agent (flag on, save_memory, gpt-5.4)
 docs/
   # ── Read these ────────────────────────────────────────────────
+  ARCHITECTURE.md             # ★★ THE reference: diagrams (turn flow, write gate, data model,
+                              #    outbox, identity gate, migrations) + config & failure tables
   SHOWCASE.md                 # ★ the team-lead walkthrough — simple, complete, v1+v2
   UNDERSTANDING_THE_SYSTEM.md # ★ YOUR ground-up map: concepts, message trace, the story, Q&A
   TECHNICAL_DEEP_DIVE.md      # ★ engineering reference: every file, edit, decision (v1 + v2 addendum)
@@ -52,7 +54,9 @@ docs/
 
 ## Which doc do I want?
 
-- **Showing the team lead?** → `docs/SHOWCASE.md` (5-min read, diagrams, honest roadmap).
+- **Want the whole system with diagrams?** → `docs/ARCHITECTURE.md` (start here).
+- **Showing the team lead?** → `docs/SHOWCASE.md` (5-min read, honest roadmap).
+- **Presenting to the team?** → `docs/TEAM_WALKTHROUGH.md` (script) + `docs/TEAM_DEMO_SLIDES.pptx`.
 - **Need to understand it fully / answer any question?** → `docs/TECHNICAL_DEEP_DIVE.md`.
 - **Running or watching the demo?** → `docs/DEMO_WALKTHROUGH.md` (what you see) + `docs/DEMO_RUNBOOK.md` (how to launch).
 
@@ -84,9 +88,9 @@ Done:
 
 **MC2 (production memory behavior — Subomi's list 2):**
 - Round 8 recon DONE: SDK 0.17.7 accepts list input; input items NOT persisted to session history (duplication risk dead); ProfileHealthMonitor = the W4 worker template; W2 route/auth/proxy/event templates quoted; memory.recalled/learned already reserved as harness-owned UI event names.
+- [x] **W4 durable extraction COMPLETE (pending push)** — outbox table as Alembic revision `6f4f8e6f7f55`, enqueue at BOTH terminal sites (incl. the structured-output path the review flagged), `MemoryExtractionWorker` on the health-monitor pattern with leased claim / session-free processing / short finalise. Receipts: worker-off enqueue → server killed → drain on boot (`processed=4 failed=0`, outbox empty) → recall recited the new memory. One transient (`agent_sessions connection is closed`) observed once and not reproducible — recorded as SDK-side (its session engine lacks `pool_pre_ping`).
 - [x] **W3 injection boundary COMPLETE** — commit `8c75ac2` on v3. Recalled memory now rides the model input list as a fenced user-role item (fresh turns only; resume paths untouched); the v1 `memory_block` insertion in `build_agent` is deleted; `MemoryItemFilterSession` keeps the injected item out of stored history. Receipts: probe disproved the input-items-not-persisted assumption BEFORE any harness edit (design adapted); live 🧠 recital through the new channel; tenant-less turn produced exactly one identity-gate line; `agent_messages` zero rows containing `<user_memory>`. Bonus discovery: turns route through `control_plane/worker_router` on current dev (noted for W4).
-- [ ] W4 durable extraction — **brief ready**: `docs/briefs/W4_DURABLE_EXTRACTION.md` (outbox table as Alembic revision 002, worker on the health-monitor pattern, all completion paths, restart-survival smoke)
-- [ ] W2 governed APIs + audit events + retention (+ console tenant plumbing) — brief after W4
+- [ ] W2 governed APIs + audit events + retention (+ console tenant plumbing) — the last MC2 workstream
 - [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
 
 Open (optional / follow-up):
