@@ -28,6 +28,8 @@ docs/
   # ── Read these ────────────────────────────────────────────────
   ARCHITECTURE.md             # ★★ THE reference: diagrams (turn flow, write gate, data model,
                               #    outbox, identity gate, migrations) + config & failure tables
+  CODE_WALKTHROUGH.md         # ★★ engineering companion: every file, function and integration
+                              #    point, with code — read alongside ARCHITECTURE.md
   SHOWCASE.md                 # ★ the team-lead walkthrough — simple, complete, v1+v2
   UNDERSTANDING_THE_SYSTEM.md # ★ YOUR ground-up map: concepts, message trace, the story, Q&A
   TECHNICAL_DEEP_DIVE.md      # ★ engineering reference: every file, edit, decision (v1 + v2 addendum)
