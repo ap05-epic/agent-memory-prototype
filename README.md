@@ -84,8 +84,8 @@ Done:
 
 **MC2 (production memory behavior — Subomi's list 2):**
 - Round 8 recon DONE: SDK 0.17.7 accepts list input; input items NOT persisted to session history (duplication risk dead); ProfileHealthMonitor = the W4 worker template; W2 route/auth/proxy/event templates quoted; memory.recalled/learned already reserved as harness-owned UI event names.
-- [ ] W3 injection boundary — **brief ready**: `docs/briefs/W3_INJECTION_BOUNDARY.md` (probe gate, instructions append removed, fenced user-role input item on fresh turns only, zero-rows-in-history receipt)
-- [ ] W4 durable extraction (outbox + worker on the health-monitor pattern; Alembic revision 002) — brief after W3
+- [x] **W3 injection boundary COMPLETE** — commit `8c75ac2` on v3. Recalled memory now rides the model input list as a fenced user-role item (fresh turns only; resume paths untouched); the v1 `memory_block` insertion in `build_agent` is deleted; `MemoryItemFilterSession` keeps the injected item out of stored history. Receipts: probe disproved the input-items-not-persisted assumption BEFORE any harness edit (design adapted); live 🧠 recital through the new channel; tenant-less turn produced exactly one identity-gate line; `agent_messages` zero rows containing `<user_memory>`. Bonus discovery: turns route through `control_plane/worker_router` on current dev (noted for W4).
+- [ ] W4 durable extraction — **brief ready**: `docs/briefs/W4_DURABLE_EXTRACTION.md` (outbox table as Alembic revision 002, worker on the health-monitor pattern, all completion paths, restart-survival smoke)
 - [ ] W2 governed APIs + audit events + retention (+ console tenant plumbing) — brief after W4
 - [ ] W3 injection boundary · W4 durable extraction (outbox) · W2 governed memory APIs + retention → merge-candidate 2
 
