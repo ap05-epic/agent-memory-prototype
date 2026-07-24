@@ -29,6 +29,10 @@ except ImportError:  # standalone transfer-repo layout
     from memory.store import forget_user, scope_metrics, smart_add_entry  # noqa: E402
 
 P, U = "verify-profile-c", "verify-user-c"
+# Pass the tenant explicitly everywhere. The identity hardening removed the
+# default-tenant sentinel from the store signatures, so relying on a default
+# breaks against the current package (and passing it works against both).
+T = "default"
 FAILURES: list[str] = []
 NOW = datetime.now(timezone.utc)
 
@@ -105,26 +109,26 @@ async def main():
               and semantic.parse_decision("NONE", 3) == ("none", None))
 
         # 4. plain adds (distinct topics) -> saved, embedded
-        s1, id1 = await smart_add_entry(P, U, "user wants three bullet points", category="preference")
-        s2, _ = await smart_add_entry(P, U, "user works on payments team", category="context")
-        m = await scope_metrics(P, U)
+        s1, id1 = await smart_add_entry(P, U, tenant_id=T, content="user wants three bullet points", category="preference")
+        s2, _ = await smart_add_entry(P, U, tenant_id=T, content="user works on payments team", category="context")
+        m = await scope_metrics(P, U, T)
         check(4, "adds embedded", s1 == s2 == "saved" and m["live"] == 2 and m["embedded"] == 2, m)
 
         # 5. tier-2 same-fact fast path (cos ~0.97, not richer) -> duplicate
-        s3, _ = await smart_add_entry(P, U, "user wants five bullet points")
+        s3, _ = await smart_add_entry(P, U, tenant_id=T, content="user wants five bullet points")
         # NOTE: 'five' vs 'three' IS a changed fact, but without a decide callback the
         # fast path only auto-supersedes when strictly richer -> expect duplicate here.
-        check(5, "tier-2 fast path (no LLM) conservative", s3 == "duplicate" and (await scope_metrics(P, U))["live"] == 2)
+        check(5, "tier-2 fast path (no LLM) conservative", s3 == "duplicate" and (await scope_metrics(P, U, T))["live"] == 2)
 
         # 6. tier-3 band with stub decide -> supersede, chain recorded
         async def decide_supersede_0(fact, candidates):
             return "SUPERSEDE 0"
 
         s4, new_id = await smart_add_entry(
-            P, U, "user works on payments reconciliation team now",
+            P, U, tenant_id=T, content="user works on payments reconciliation team now",
             observed_at=NOW, decide=decide_supersede_0,
         )
-        m = await scope_metrics(P, U)
+        m = await scope_metrics(P, U, T)
         check(6, "tier-3 supersede + chain", s4 == "superseded_old" and m["superseded"] == 1 and m["live"] == 2, (s4, m))
 
         # 7. observed_at guard: an OLDER fact may not supersede the incumbent
@@ -134,12 +138,12 @@ async def main():
             return "SUPERSEDE 0"
 
         s6, _ = await smart_add_entry(
-            P, U, "user works on payments team", observed_at=old_date, decide=decide_always_0
+            P, U, tenant_id=T, content="user works on payments team", observed_at=old_date, decide=decide_always_0
         )
         check(7, "observed_at guard -> ADD not supersede", s6 == "saved", s6)
 
         # 8. blended recall: query near formatting topic ranks the fmt memory in
-        block, count = await build_memory_block(P, U, query_text="query about formatting")
+        block, count = await build_memory_block(P, U, T, query_text="query about formatting")
         check(8, "relevance recall", block is not None and "three bullet points" in block and count >= 1, count)
 
         # 9. degradation: embedder down -> recency recall still works
@@ -147,7 +151,7 @@ async def main():
             return None
 
         _digit.embed = dead_embed
-        block, count = await build_memory_block(P, U, query_text="query about formatting")
+        block, count = await build_memory_block(P, U, T, query_text="query about formatting")
         check(9, "embedder-down degradation", block is not None and count >= 1)
         _digit.embed = fake_embed
 
@@ -158,21 +162,21 @@ async def main():
             return "SUPERSEDE 0"
 
         s10, _ = await smart_add_entry(
-            P, U, "user wants three bullets", observed_at=NOW, decide=decide_contradiction
+            P, U, tenant_id=T, content="user wants three bullets", observed_at=NOW, decide=decide_contradiction
         )
-        m = await scope_metrics(P, U)
+        m = await scope_metrics(P, U, T)
         check(10, "high-sim contradiction via decide -> supersede", s10 == "superseded_old" and m["superseded"] >= 2, (s10, m))
 
         # 11. below the decide floor, the LLM is never consulted (cost control)
         async def decide_must_not_be_called(fact, candidates):
             raise AssertionError("decide called below T_DECIDE_FLOOR")
 
-        s11, _ = await smart_add_entry(P, U, "user likes pasta", decide=decide_must_not_be_called)
+        s11, _ = await smart_add_entry(P, U, tenant_id=T, content="user likes pasta", decide=decide_must_not_be_called)
         check(11, "decide floor skips LLM for unrelated fact", s11 == "saved", s11)
 
         # 12. forget_user cascade
-        n = await forget_user(P, U)
-        m = await scope_metrics(P, U)
+        n = await forget_user(P, U, T)
+        m = await scope_metrics(P, U, T)
         check(12, "forget_user cascade", n >= 3 and m["live"] == 0 and m["discarded"] >= n, (n, m))
 
         await cleanup()
