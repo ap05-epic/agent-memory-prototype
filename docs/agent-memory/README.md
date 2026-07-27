@@ -20,12 +20,15 @@ If memory can't do its job — the embedder is down, the database is unreachable
 
 ## Where to look next
 
-| If you want to… | Read |
-|---|---|
-| Understand how it works, with diagrams | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| Change or extend it without breaking things | [DEVELOPING.md](DEVELOPING.md) |
-| Run it, configure it, or debug it | [OPERATIONS.md](OPERATIONS.md) |
-| Know what a specific file or function does | [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) |
+| If you want to… | Read | Time |
+|---|---|---|
+| Understand how it works, with diagrams | [ARCHITECTURE.md](ARCHITECTURE.md) | 15 min |
+| Know why it is built this way | [DECISIONS.md](DECISIONS.md) | 10 min |
+| Change or extend it without breaking things | [DEVELOPING.md](DEVELOPING.md) | 10 min |
+| Run it, configure it, or debug it | [OPERATIONS.md](OPERATIONS.md) | reference |
+| Know what a specific file or function does | [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) | reference |
+
+Picking up work on this? Read this page, then ARCHITECTURE and DEVELOPING — about half an hour, and enough to be productive. Reach for DECISIONS the moment something looks arbitrary; it probably is not.
 
 ## What exists today
 
@@ -33,7 +36,9 @@ The feature is built and verified; it is not yet enabled for general use.
 
 **Working and verified:** the tool and automatic extraction, semantic recall with relevance-and-recency ranking, supersede-on-contradiction, per-(agent, user, tenant) scoping, the fail-closed identity gate, schema managed by Alembic migrations, memory running on the harness's own database lifecycle, durable extraction that survives restarts, and recalled memory travelling in the model's data channel rather than its instructions.
 
-**In progress:** the governed API layer (view, delete, forget, disable your own memories, with an audit trail and retention), and the console tenant plumbing that will re-enable memory in the UI.
+**Built, final verification in progress:** the governed API layer — view, delete, forget or disable your own memories — with an append-only audit trail and a retention worker for scheduled permanent deletion.
+
+**Next:** the console tenant plumbing that will re-enable memory in the UI. Until it lands, memory is inert from the console by design, because the console does not yet send a tenant and identity is fail-closed.
 
 **Deliberately not built:** consolidation of many small memories into a per-user summary. It is designed, the table is reserved, and it is the natural next step once the governance work lands.
 
@@ -44,3 +49,5 @@ The feature is built and verified; it is not yet enabled for general use.
 3. **Failure means "do nothing", not "guess".** Every degradation path falls back to writing an extra row or injecting nothing. That asymmetry is deliberate: a duplicate is noise, a wrong overwrite is damage.
 4. **Nothing is destroyed at runtime.** Soft-delete and supersede chains *are* the audit trail.
 5. **Thresholds are measured, not borrowed.** The similarity numbers in the write gate came from telemetry on real behaviour with the model we actually use. If you change the embedding model, recalibrate them — the current values will not transfer.
+
+Every one of those five has a decision entry explaining what it cost to learn.

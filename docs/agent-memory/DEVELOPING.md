@@ -77,13 +77,26 @@ Then *read the generated file* — autogenerate gets vector columns and server d
 
 ## Pitfalls, all learned the hard way
 
-- **Sync route handlers.** FastAPI runs `def` handlers in a worker thread. Bridging from there into async database calls creates a second event loop and produces `got Future attached to a different loop`, breaking connections borrowed from the shared pool. Always `async def`, always `await` directly.
+- **Sync route handlers.** FastAPI runs `def` handlers in a worker thread. Bridging from there into async database calls creates a second event loop and produces `got Future attached to a different loop`, breaking connections borrowed from the shared pool — it cost us a debugging session on the governance endpoints. Always `async def`, always `await` directly, no `asyncio.run` anywhere in a request path.
 - **Long transactions around model calls.** The outbox worker originally held a `FOR UPDATE` claim open across the whole extraction. Claim in a short transaction that leases the rows, process holding nothing, finalise in another short transaction.
 - **Stale servers.** If behaviour doesn't match your code, check the build marker before debugging the logic.
 - **Ambient environment variables.** A stale `AZURE_OPENAI_BASE_URL` in the shell silently overrides `.env` and produces 401s that look like bad credentials. Unset before sourcing.
 - **Assuming SDK behaviour.** We assumed input items weren't persisted to session history; they are. A ten-minute throwaway probe caught it before it became a slow leak of duplicated rows. Probe first when an assumption is load-bearing.
 - **Borrowed thresholds.** Similarity numbers from papers did not survive contact with our embedder — a real contradiction measured 0.309 where the literature implied 0.70+. Every write logs `memory gate: top_sim=… tier=… action=…` so calibration stays evidence-based.
 - **The two-part identity.** Memory needs a user *and* a tenant. Most "memory is broken" reports turn out to be a missing tenant.
+
+## Keeping the branch current
+
+The feature branch drifts from `dev` at whatever rate the team ships. Merge `dev` in **weekly, and always before starting a new piece of work** — never let it pass roughly fifty commits, because small merges are boring and large ones are the ones people tell stories about.
+
+```bash
+git status --short                     # must be clean first
+git fetch origin
+git rev-list --left-right --count origin/dev...HEAD    # behind / ahead
+git merge origin/dev
+```
+
+Use merge rather than rebase: the branch is pushed and shared. On conflicts, the rule of thumb is that files under `memory/` are ours and take our version, while harness files take dev's structure with our insertions re-placed into it. After any non-trivial merge, run the suite *and* drive one live turn — a merge that compiles can still have moved an integration point out from under us.
 
 ## Definition of done for a change here
 

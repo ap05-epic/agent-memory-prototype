@@ -29,6 +29,7 @@ docs/
   agent-memory/
     README.md                 # start here: what it is, the 60-second model, where to look next
     ARCHITECTURE.md           # how it works: diagrams, data model, config & failure tables
+    DECISIONS.md              # why it is built this way: 15 decisions, alternatives, evidence
     DEVELOPING.md             # how to work on it: setup, tests, common changes, pitfalls
     OPERATIONS.md             # how to run it: enabling, config, log lines, troubleshooting
     CODE_WALKTHROUGH.md       # optional depth: every file and function, with code
@@ -47,7 +48,7 @@ docs/
   recon/RECONCILIATION_NOTES.md # transfer repo == deployed pod state (single authoring base)
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
-  KNOWN_ISSUES.md             # local tool-calling loop — diagnosis, isolation steps, workaround
+  KNOWN_ISSUES.md             # open issues + resolved history (event-loop bug, SDK transient, dev failures)
   INDICATORS.md               # the recall-indicator design + implementation
   IMPLEMENTATION_BRIEF.md     # the build brief handed to the implementation agent (historical)
   DESIGN_DRAFT.md             # the original pre-build design (historical)
@@ -59,7 +60,9 @@ docs/
 
 ## Which doc do I want?
 
-- **Want the whole system with diagrams?** → `docs/agent-memory/ARCHITECTURE.md` (start here).
+- **New to the feature, or handing it over?** → `docs/agent-memory/` — the shipping set, in reading order.
+- **Want the whole system with diagrams?** → `docs/agent-memory/ARCHITECTURE.md`.
+- **Wondering why something is built that way?** → `docs/agent-memory/DECISIONS.md`.
 - **Showing the team lead?** → `docs/SHOWCASE.md` (5-min read, honest roadmap).
 - **Presenting to the team?** → `docs/TEAM_WALKTHROUGH.md` (script) + `docs/TEAM_DEMO_SLIDES.pptx`.
 - **Need to understand it fully / answer any question?** → `docs/TECHNICAL_DEEP_DIVE.md`.

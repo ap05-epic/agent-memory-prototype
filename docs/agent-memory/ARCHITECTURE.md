@@ -341,16 +341,15 @@ The chain so far:
 | Harness-managed DB lifecycle | Done — no private engine in-app |
 | Identity and tenant hardening | Done — fail-closed |
 | Test coverage incl. off-by-default guard | Done |
-| **Merge candidate 1 (foundation)** | **In review** — branch `feature/agentmemory-mc1` |
 | Recall out of the instruction channel | Done |
 | Durable extraction (outbox + worker) | Done |
-| Governed APIs, audit events, retention | Built; API layer being fixed (see below) |
+| Governed APIs, audit trail, retention | Built; final live verification in progress |
 | Console tenant plumbing | Next — this is what re-enables memory in the console |
 | Consolidation into per-user profiles | Designed, deferred |
 
-**Branch topology.** `feature/agentmemory-mc1` is a frozen snapshot of the foundation work, open as a merge request; nothing new lands on it. All candidate-2 work continues on `feature/agentmemory-v3`, so pushes there cannot disturb the review.
+**Branch topology.** `feature/agentmemory-v3` is the working branch and carries everything. `feature/agentmemory-mc1` is a frozen snapshot of the foundation work — the first six rows of that table — captured for review; nothing new lands on it, so work on the main branch cannot disturb it.
 
-**Known open item.** The governance endpoints are implemented and their migration is applied, but the routes were written as synchronous handlers bridging into async store calls, which creates a second event loop and breaks connections borrowed from the app's pool (`got Future attached to a different loop`). The fix is to declare the routes `async def` and await the store functions directly. That work is uncommitted on `feature/agentmemory-v3` and is not in any merge request.
+**What "deferred" means for consolidation.** Recall injects at most 20 entries per turn regardless of how many exist, so the system does not degrade as memories accumulate; what it lacks is a way to *compress* many small facts into a durable summary. The table is reserved and the design is written down. It becomes worth building when a single user's scope routinely exceeds what the injection budget can represent.
 
 ## 14. Glossary
 
