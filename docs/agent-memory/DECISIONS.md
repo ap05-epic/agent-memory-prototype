@@ -60,7 +60,7 @@ Filing a real person's data under a shared placeholder is the worst failure this
 
 **Alternatives:** keep fire-and-forget; use a job queue system.
 
-Fire-and-forget lost a memory whenever the process died between the turn ending and extraction finishing, and one newer completion path in the harness skipped extraction entirely. The outbox is a table plus a small worker — no new infrastructure, and the row survives anything. Delivery is at-least-once, which is safe precisely because of decision 4: a replay produces a duplicate the gate then drops.
+Fire-and-forget lost a memory whenever the process died between the turn ending and extraction finishing, and at the time one newer completion path in the harness skipped extraction entirely. (The harness has since unified its completion paths, so a single enqueue at the post-loop terminal now covers every success path by construction.) The outbox is a table plus a small worker — no new infrastructure, and the row survives anything. Delivery is at-least-once, which is safe precisely because of decision 4: a replay produces a duplicate the gate then drops.
 
 The worker claims rows under a **lease** (a future retry timestamp) rather than a status flag, so a worker that dies mid-job releases its work automatically with no stuck-record cleanup to write.
 

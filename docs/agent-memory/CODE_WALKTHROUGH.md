@@ -188,7 +188,7 @@ run_input = [
 
 only when `run_input` is None — resume/`RunState` paths are untouched. The SDK session is wrapped with `MemoryItemFilterSession` at the same point.
 
-2. *Extraction enqueue*, at **both** terminal sites: inside the `RESPONSE_COMPLETED` branch and at the fallthrough `RUN_COMPLETED` that structured-output turns reach. Two sites, not one, because dev's structured-output agents skip `RESPONSE_COMPLETED` entirely — the gap the review named.
+2. *Extraction enqueue*, at the single terminal block after the stream loop, via the shared helper `_enqueue_memory_extraction_if_eligible` (which carries all three guards: the profile flag, `memory_identity_ok`, and the per-user opt-out). One site covers every success path because the harness unified turn completion: the `RESPONSE_COMPLETED` branch only records the final output and lets the loop finish, and the post-loop block emits the governance audit and `RUN_COMPLETED` for both normal and structured-output turns. *(This was two sites before that unification — the review's original finding was that structured-output turns bypassed extraction entirely, which the single unified terminal now covers by construction.)*
 
 3. *Tool enablement*, in `_harness_run_context`: `"memory_enabled": flag and bool(user_id) and bool(tenant_id)`, plus `"tenant_id"` in the context dict. Gating this key gates `save_memory` with no tool-side change at all.
 

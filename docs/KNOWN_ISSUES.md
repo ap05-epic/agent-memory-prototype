@@ -4,13 +4,13 @@
 
 **1. One unexplained SDK session transient.** During the outbox work, a single turn failed with `InterfaceError: connection is closed` on the SDK's `agent_sessions` table. It never reproduced across repeated runs. Most likely cause: the harness's own `Database` sets `pool_pre_ping=True`, while the SDK's `SQLAlchemySession.from_url` engine does not, so a dropped pooled connection surfaces exactly this way. SDK-side and harness-wide rather than memory-specific. Recorded rather than fixed, because we could not reproduce it.
 
-**2. Two pre-existing test failures on dev.** `test_turn_stream_custom_mcp_reaches_sdk_agent` (test double missing the newer `manifest_path` kwarg) and `test_turn_service_immediate_stream_does_not_block_on_event_journal` (event-journal wait timeout). Both reproduce at the pre-change baseline commit, so they belong to dev, not to this feature. Documented in the merge request rather than fixed.
-
-**3. Undocumented database constraint.** The shared dev database carries a hand-applied unique index `ix_agent_runs_one_active_per_thread` on `agent_runs` that no code creates. Left untouched, excluded from migration management, definition recorded in `MIGRATIONS.md`, and escalated to the team for a decision.
+**2. Undocumented database constraint.** The shared dev database carries a hand-applied unique index `ix_agent_runs_one_active_per_thread` on `agent_runs` that no code creates. Left untouched, excluded from migration management, definition recorded in `MIGRATIONS.md`, and escalated to the team for a decision.
 
 ---
 
 ## Resolved
+
+**Two pre-existing dev test failures (2026-07-27).** `test_turn_stream_custom_mcp_reaches_sdk_agent` and `test_turn_service_immediate_stream_does_not_block_on_event_journal` failed on dev for weeks and were documented as not-ours. The dev merge brought their fixes: the suite is now **420 passed, 0 failed**. From here any failure belongs to us.
 
 **Governance endpoints ran on the wrong event loop (2026-07-27).** The memory routes were written as synchronous `def` handlers bridging into async store calls. FastAPI runs sync handlers in a worker thread, so the bridge created a second event loop and connections borrowed from the app's pool failed with `got Future attached to a different loop`; it briefly disturbed the outbox worker sharing that pool too. Fixed by declaring every route `async def` and awaiting the store functions directly. The rule is now written into `agent-memory/DEVELOPING.md`: no `asyncio.run` or thread bridge anywhere in a request path.
 
