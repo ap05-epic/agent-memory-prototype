@@ -1,10 +1,12 @@
 # Merge Candidate 1 — the package
 
+> **Status (2026-07-27):** the merge request was opened and is now **Draft**. The team's direction is to keep building on the branch rather than merge in stages, so this package is retained for the eventual review conversation and for the receipts table below, which is still accurate.
+
 Everything needed to open the merge request and talk it through with Subomi.
 
 **Branch: `feature/agentmemory-mc1`**, a snapshot of the candidate-1 work cut from `feature/agentmemory-v3` at the identity commit `938de17`, which itself was cut from dev `7fa86f5`. Ten commits: the five original prototype commits carried over, four workstream commits (W0 marker sync `2fc2dbb`, W5 `d68db32`, W1 `5a2956e`, W6 `938de17`), and one commit removing the documentation bundle so the merge is code and tests only.
 
-Candidate-2 work (the injection boundary, the outbox, and the in-progress governance layer) lives on `feature/agentmemory-v3` and is deliberately **not** in this branch. Nothing pushed there can affect this merge request.
+Candidate-2 work (the injection boundary, the outbox, and the governed API layer) lives on `feature/agentmemory-v3` and is deliberately **not** in this branch. Nothing pushed there can affect this merge request.
 
 Net diff against `dev`: 26 files, ~2,270 insertions, no documentation paths.
 
@@ -56,7 +58,7 @@ Net diff against `dev`: 26 files, ~2,270 insertions, no documentation paths.
 | No test coverage | 10 new tests: sessions (3), migrations (4), identity + off-by-default guard (3) | Suite 333 passed; the 2 failures proven pre-existing at the baseline commit via a throwaway worktree |
 | Memory must stay off by default (the MC1 condition) | Flag defaults false; only the `tests/fixtures` demo profile enables it | Guard test fails the build if any non-test profile turns it on |
 
-**Candidate 2 status** (on `feature/agentmemory-v3`, not in this MR): recall moved out of the instruction channel into the model input list ✅ · durable extraction via outbox + worker ✅ · governed APIs, audit trail and retention 🔄 in progress · console tenant plumbing ⏳ next.
+**Candidate 2 status** (on `feature/agentmemory-v3`, not in this MR): recall moved out of the instruction channel into the model input list ✅ · durable extraction via outbox + worker ✅ · governed APIs, audit trail and retention ✅ · console tenant plumbing ⏳ the last remaining piece.
 
 ## 3. Message to send with the MR link
 
