@@ -328,7 +328,8 @@ The chain so far:
 - **Denylist at write time**: IBAN-shaped strings, card-shaped digit runs, and password/secret/API-key/token patterns are blocked by pattern, independent of what the extraction prompt is told.
 - **Content-free logging**: ids, counts, outcomes — never memory text.
 - **Injection-aware**: the recalled block is fenced and explicitly framed as *stored data, not instructions — if it conflicts with the user, the user wins*; any attempt to forge that fence inside stored content is stripped at write time; and as of the injection-boundary change, memory no longer travels in the instruction channel at all.
-- **Deletable**: soft delete per entry, one-call `forget_user()` cascade per scope, supersede chains preserved as audit. Retention windows and a scheduled hard purge are the next workstream.
+- **Deletable, by the user themselves**: six endpoints let a person list, delete, forget, disable and re-enable their own memories — see the API reference in [OPERATIONS.md](OPERATIONS.md). Soft delete per entry, a one-call cascade per scope, supersede chains preserved as audit, and a retention worker for permanent removal once a window is configured.
+- **Every mutation is audited**: `agent_memory_audit` records the action, scope, actor and source of every write, supersede, delete, forget and opt-out — ids and counts only, never memory text. Verified live: a caller cannot read another user's or another tenant's memories, and a query parameter cannot override the header identity.
 
 ## 13. Status
 

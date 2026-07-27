@@ -25,7 +25,7 @@ If memory can't do its job — the embedder is down, the database is unreachable
 | Understand how it works, with diagrams | [ARCHITECTURE.md](ARCHITECTURE.md) | 15 min |
 | Know why it is built this way | [DECISIONS.md](DECISIONS.md) | 10 min |
 | Change or extend it without breaking things | [DEVELOPING.md](DEVELOPING.md) | 10 min |
-| Run it, configure it, or debug it | [OPERATIONS.md](OPERATIONS.md) | reference |
+| Run it, configure it, call its API, or debug it | [OPERATIONS.md](OPERATIONS.md) | reference |
 | Know what a specific file or function does | [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) | reference |
 
 Picking up work on this? Read this page, then ARCHITECTURE and DEVELOPING — about half an hour, and enough to be productive. Reach for DECISIONS the moment something looks arbitrary; it probably is not.

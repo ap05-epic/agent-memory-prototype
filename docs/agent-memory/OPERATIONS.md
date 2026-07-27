@@ -35,6 +35,42 @@ The flag alone gives the agent recall and automatic extraction; the tool adds ex
 
 `AGENT_FACTORY_MEMORY_EMBED_DIM` and `AGENT_FACTORY_MEMORY_PGVECTOR` are read **at import time** and decide the column type the code expects. If two processes disagree about them while sharing one database, writes fail — the write path retries without the embedding so content still persists, and logs a warning naming both values.
 
+## The memory API
+
+Six endpoints let a person see and control what is stored about them. All of them act on **one scope** — one agent, one user, one tenant — and that scope comes from the caller's identity, not from what they ask for.
+
+**Identity.** The caller is resolved from headers: `x-user-id` (or `x-user-email` / `x-username`) and `x-tenant-id`. A `user_id` query parameter cannot override the header — if a header is present it wins, and when authentication is required a mismatched parameter is rejected with 403. Missing user or missing tenant is a 400. This is the same precedence the rest of the harness uses for caller-scoped endpoints.
+
+| Method | Path | Does |
+|---|---|---|
+| `GET` | `/api/v1/memory` | List this scope's live memories |
+| `GET` | `/api/v1/memory/status` | Summary: whether memory is on, how many entries, oldest and newest, whether the user has opted out |
+| `DELETE` | `/api/v1/memory/{entry_id}` | Soft-delete one memory. 404 if it is not in the caller's scope |
+| `POST` | `/api/v1/memory/forget` | Soft-delete every memory in the scope; returns the count |
+| `POST` | `/api/v1/memory/disable` | Turn memory off for this user on this agent |
+| `POST` | `/api/v1/memory/enable` | Turn it back on |
+
+```bash
+# list your memories
+curl -sS -H 'x-user-id: alice' -H 'x-tenant-id: acme' \
+  'http://127.0.0.1:8081/api/v1/memory?profile_id=memory-demo'
+
+# delete one
+curl -sS -X DELETE -H 'x-user-id: alice' -H 'x-tenant-id: acme' \
+  'http://127.0.0.1:8081/api/v1/memory/<entry_id>?profile_id=memory-demo'
+# -> {"deleted": true, "audit_id": "..."}
+
+# opt out entirely, then back in
+curl -sS -X POST -H 'x-user-id: alice' -H 'x-tenant-id: acme' \
+  'http://127.0.0.1:8081/api/v1/memory/disable?profile_id=memory-demo'
+```
+
+Every mutating call writes one row to `agent_memory_audit` recording the action, the scope, the actor and the source — and returns that row's id, so an action can be traced afterwards. Reads are not audited.
+
+**The opt-out is checked at the start of every turn.** A user who disables memory gets normal replies with no recall and no writes, and one content-free log line explains why. Re-enabling takes effect on the next turn.
+
+> **Not yet enforced:** `MemoryPolicy` declares `max_entries_per_scope`, but nothing acts on it. Growth is currently bounded by the recall budget rather than by a hard cap. If you need a quota, that is where to add it.
+
 ## Schema changes
 
 The schema is managed by Alembic, not by `create_all`.
