@@ -120,16 +120,16 @@ Cleaning strips our own fence markers, collapses whitespace and caps the text at
 **Half two: the similarity decision.**
 
 ```mermaid
-flowchart TD
-    E[embed and compare] --> F{"score >= 0.95 and new text richer?"}
+flowchart LR
+    E[embed and compare] --> F{"score >= 0.95<br/>and richer?"}
     F -->|yes| SUP[supersede]
-    F -->|no| G{"score >= 0.30 and decider available?"}
+    F -->|no| G{"score >= 0.30<br/>and decider?"}
     G -->|no| ADD[add]
     G -->|yes| H[ask the small model]
     H --> I{verdict}
     I -->|ADD| ADD
     I -->|NONE| DROP[drop]
-    I -->|SUPERSEDE n| J{is the new fact newer?}
+    I -->|SUPERSEDE n| J{new fact newer?}
     J -->|yes| SUP
     J -->|no| ADD
 ```
@@ -152,10 +152,8 @@ flowchart TD
     B -->|yes, pgvector on| R1[rung 1: rank in SQL]
     B -->|yes, no pgvector| R2[rung 2: rank in Python]
     B -->|no| R3[rung 3: recency only]
-    R1 --> F{"above the 0.35 floor?"}
-    R2 --> F
-    F -->|yes| OUT[inject block]
-    F -->|no| R3
+    R1 --> OUT[inject block]
+    R2 --> OUT
     R3 --> OUT
 ```
 
@@ -169,7 +167,6 @@ Four tables, all keyed by the same three scope columns: `profile_id`, `user_id`,
 
 ```mermaid
 erDiagram
-    agent_memory_entries ||--o{ agent_memory_entries : replaces
     agent_memory_entries ||--o{ agent_memory_audit : records
 
     agent_memory_entries {
@@ -226,9 +223,9 @@ A queued job moves through four states:
 ```mermaid
 stateDiagram-v2
     [*] --> pending: turn ends
-    pending --> leased: worker claims it
+    pending --> leased: claimed
     leased --> [*]: success
-    leased --> pending: retry or lease expiry
+    leased --> pending: retry or expiry
     pending --> failed: 5 attempts
     failed --> [*]: manual review
 ```
@@ -259,16 +256,16 @@ That ordering is the whole point. Our first version held the claim transaction o
 ## 8. Identity and scoping
 
 ```mermaid
-flowchart TD
+flowchart LR
     A[turn arrives] --> B{memory flag on?}
     B -->|no| OFF[no memory code runs]
-    B -->|yes| C{user id present?}
+    B -->|yes| C{user id?}
     C -->|no| GATE["disabled for this turn"]
-    C -->|yes| D{tenant id present?}
+    C -->|yes| D{tenant id?}
     D -->|no| GATE
-    D -->|yes| E{user opted out?}
+    D -->|yes| E{opted out?}
     E -->|yes| GATE
-    E -->|no| ON["recall, tool and extraction active"]
+    E -->|no| ON["recall, tool and<br/>extraction active"]
 ```
 
 Fail-closed by construction: the same predicate gates recall, extraction, and the tool (the tool is gated implicitly — it is enabled through the same run-context flag, so no tool-side change was needed). Harness paths no longer fall back to a `"default"` tenant sentinel.
