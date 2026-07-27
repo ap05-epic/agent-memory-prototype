@@ -163,4 +163,4 @@ One deliberate point of departure: `deepagents`' default is to inject memory int
 
 *Source repo: `agent-memory-prototype` (transfer repo, mirrors the deployed harness package). Tech stack: Python 3.11, FastAPI, OpenAI Agents SDK (`openai-agents` 0.17.7), async SQLAlchemy 2.0, Azure PostgreSQL 15.16 + pgvector 0.8.2, Alembic. Current status: merge candidate 1 in formal review; merge candidate 2 half built — injection boundary and durable extraction done and verified, governed APIs and console tenant plumbing next.*
 
-*Rendered diagrams of everything described here — system context, turn sequence, write gate, data model, outbox lifecycle, identity gate, migration flow — are in `ARCHITECTURE.md`.*
+*Rendered diagrams of everything described here — system context, turn sequence, write gate, data model, outbox lifecycle, identity gate, migration flow — are in `agent-memory/ARCHITECTURE.md`.*

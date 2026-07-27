@@ -25,11 +25,14 @@ scripts/
 profiles/
   memory-demo/                # purpose-built demo agent (flag on, save_memory, gpt-5.4)
 docs/
-  # ── Read these ────────────────────────────────────────────────
-  ARCHITECTURE.md             # ★★ THE reference: diagrams (turn flow, write gate, data model,
-                              #    outbox, identity gate, migrations) + config & failure tables
-  CODE_WALKTHROUGH.md         # ★★ engineering companion: every file, function and integration
-                              #    point, with code — read alongside ARCHITECTURE.md
+  # ── ★★ THE SHIPPING DOC SET (this folder is what goes to the harness repo) ──
+  agent-memory/
+    README.md                 # start here: what it is, the 60-second model, where to look next
+    ARCHITECTURE.md           # how it works: diagrams, data model, config & failure tables
+    DEVELOPING.md             # how to work on it: setup, tests, common changes, pitfalls
+    OPERATIONS.md             # how to run it: enabling, config, log lines, troubleshooting
+    CODE_WALKTHROUGH.md       # optional depth: every file and function, with code
+  # ── Project history / working material (stays in this repo) ───
   SHOWCASE.md                 # ★ the team-lead walkthrough — simple, complete, v1+v2
   UNDERSTANDING_THE_SYSTEM.md # ★ YOUR ground-up map: concepts, message trace, the story, Q&A
   TECHNICAL_DEEP_DIVE.md      # ★ engineering reference: every file, edit, decision (v1 + v2 addendum)
@@ -56,7 +59,7 @@ docs/
 
 ## Which doc do I want?
 
-- **Want the whole system with diagrams?** → `docs/ARCHITECTURE.md` (start here).
+- **Want the whole system with diagrams?** → `docs/agent-memory/ARCHITECTURE.md` (start here).
 - **Showing the team lead?** → `docs/SHOWCASE.md` (5-min read, honest roadmap).
 - **Presenting to the team?** → `docs/TEAM_WALKTHROUGH.md` (script) + `docs/TEAM_DEMO_SLIDES.pptx`.
 - **Need to understand it fully / answer any question?** → `docs/TECHNICAL_DEEP_DIVE.md`.

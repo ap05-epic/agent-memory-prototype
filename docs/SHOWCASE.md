@@ -118,7 +118,7 @@ The prototype was reviewed by the team lead, and the response was split into two
 
 ## Where the depth lives
 
-- **`ARCHITECTURE.md`** (alongside this doc) — **start here for the whole system**: diagrams of the turn lifecycle, the write gate, the data model, the outbox, the identity gate, and the migration flow, plus configuration and failure-mode tables.
+- **`agent-memory/ARCHITECTURE.md`** (alongside this doc) — **start here for the whole system**: diagrams of the turn lifecycle, the write gate, the data model, the outbox, the identity gate, and the migration flow, plus configuration and failure-mode tables.
 - **`TECHNICAL_DEEP_DIVE.md`** (alongside this doc) — the full as-built engineering reference: every file, every harness touch point, every decision and its rationale.
 - **`INDUSTRY_PRACTICES.md`** (alongside this doc) — the sourced survey of how ChatGPT, Claude, Gemini, Letta, mem0, and Zep handle retention, vector retrieval, and updates — and what this design adopted from each.
 - Further working documents (design records, demo runbooks, build history) live in the project working repository.

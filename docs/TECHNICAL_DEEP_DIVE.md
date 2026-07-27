@@ -334,4 +334,4 @@ Governed memory APIs — view / delete / forget / disable per user — with audi
 
 **One observed transient, recorded for honesty:** during W4 verification a single turn failed with `InterfaceError: connection is closed` on the SDK's `agent_sessions` table. It did not reproduce across repeated worker-on turns or any later run. The likely cause is SDK-side and harness-wide rather than memory-specific: the harness's own `Database` sets `pool_pre_ping=True`, while the SDK's `SQLAlchemySession.from_url` engine does not, so a dropped pooled connection surfaces exactly this way.
 
-> **Diagrams:** `ARCHITECTURE.md` carries the rendered views of everything described here — system context, turn sequence, the write gate, the data model, the outbox state machine, the identity gate, and the migration flow.
+> **Diagrams:** `agent-memory/ARCHITECTURE.md` carries the rendered views of everything described here — system context, turn sequence, the write gate, the data model, the outbox state machine, the identity gate, and the migration flow.
