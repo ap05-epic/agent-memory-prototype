@@ -113,7 +113,7 @@ Every write emits one content-free telemetry line — `memory gate: top_sim=… 
 
 `build_memory_block(profile_id, user_id, tenant_id, query_text=None)` returns `(block, count)`. With a query it embeds the incoming message, pulls candidates, and ranks them; without one, or on any failure, it falls back to recency. It returns `(None, 0)` rather than raising — **recall may never break a turn.**
 
-`render_block` produces the fenced block. The framing is deliberate and worth reading in full:
+`_entry_lines(entries, char_budget)` is the shared source of truth: it renders one line per entry, oldest first, and drops the oldest while over budget. Both `render_block` and `build_memory_block` build from it, so the returned count always matches the lines actually in the block. `render_block` produces the fenced block. The framing is deliberate and worth reading in full:
 
 ```
 <user_memory>
@@ -219,12 +219,19 @@ Three revisions: `5258f2433fcb` (full-schema baseline, with a `CREATE EXTENSION 
 
 | File | Tests | Covers |
 |---|---|---|
+| `test_agent_memory_semantic.py` | 17 | cosine and packing; blending; recall selection with its recency and similarity floors; decision parsing including the out-of-range guard; the temporal guard; lenient date and JSON parsing |
+| `test_agent_memory_write_gate.py` | 10 | dedup; the denylist; content hygiene; the same-fact fast path; supersede chains; and every degradation path — garbage verdict, raising decider, missing embedding |
+| `test_agent_memory_recall.py` | 6 | empty scope; never raising when the database is down; the fence and framing; the character budget and its effect on the count; scope isolation |
+| `test_agent_memory_extraction.py` | 4 | lenient parsing; category normalisation; swallowing model failures; known memories reaching the prompt |
+| `test_agent_memory_tool.py` | 2 | declines when the flag is off or identity is unresolved; status-to-sentence mapping |
+| `test_agent_memory_roundtrip.py` | 3 | seed-and-recall ranking; two-user and two-tenant isolation; a supersede round trip |
+| `test_agent_memory_regressions.py` | 3 | structural guards: no default-tenant fallback, no memory in the adapter, workers imported and referenced, one enqueue call, identity checks present, routes are async |
 | `test_agent_memory_sessions.py` | 3 | installed factory is used; standalone fallback; a write travels through an injected factory |
-| `test_agent_memory_identity.py` | — | the `memory_identity_ok` truth table (no user, user only, tenant only, both); run-context gating; and the **off-by-default guard** that walks every non-test profile and asserts none enables semantic memory |
+| `test_agent_memory_identity.py` | — | the `memory_identity_ok` truth table; run-context gating; the **off-by-default guard** across every non-test profile |
 | `test_agent_memory_input_channel.py` | 4 | input-list ordering; resume-path guard; the adapter carries no memory parameter; the session filter drops memory items |
 | `test_agent_memory_outbox.py` | 6 | enqueue; claim commits before processing; success deletes; retry and backoff; the failure cap; fallback on enqueue error |
-| `test_agent_memory_governance.py` | 7 | scope isolation; cross-scope delete protection; forget; opt-out round trip; purge windows; audit rows contain no content; the list and forget routes |
-| `test_migrations.py` | 4 | alembic config loads; exactly one head; linear chain; memory tables present in the baseline |
+| `test_agent_memory_governance.py` | 7 | scope isolation; cross-scope delete protection; forget; opt-out; purge windows; audit rows contain no content; the list and forget routes |
+| `test_migrations.py` | 4 | alembic config loads; exactly one head; linear chain; memory tables in the baseline |
 
 The off-by-default guard is the mechanism behind the claim that memory cannot be switched on accidentally: it reads every profile YAML under the real profile paths and fails the build if any of them sets the flag.
 

@@ -142,7 +142,7 @@ The model sees the top five candidates as an integer-indexed list and returns an
 
 ## 5. Retrieval and ranking
 
-Candidates are scored `0.7 × similarity + 0.3 × exp(−age_days / 30)`, with a minimum-similarity floor of 0.35 so weak matches are never injected just for being top-k, plus a small recency floor of always-included recent items. Up to 20 entries / 8,000 characters are injected per turn.
+Candidates are scored `0.7 × similarity + 0.3 × exp(−age_days / 30)`, with a minimum-similarity floor of 0.35 so weak matches are never injected just for being top-k, plus a small recency floor of always-included recent items. Up to 20 entries / 8,000 characters are injected per turn; if the character budget bites, the oldest lines are dropped first and the count reported by the 🧠 indicator reflects what was actually injected, not what was selected.
 
 Retrieval degrades down three rungs rather than failing. It takes the highest rung available and never raises:
 
