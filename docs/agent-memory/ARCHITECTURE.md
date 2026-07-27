@@ -3,7 +3,7 @@
 **The definitive description of the system as it stands today**, on branch `feature/agentmemory-v3`. Diagrams render natively in GitHub and GitLab. If you read one document about this feature, read this one.
 
 - Audience: anyone on the DIGIT AI Engineering team.
-- Companion docs: [SHOWCASE.md](SHOWCASE.md) (5-minute overview) · [TECHNICAL_DEEP_DIVE.md](TECHNICAL_DEEP_DIVE.md) (file-by-file reference) · [MIGRATIONS.md — on the harness branch] (schema operations) · [research/INDUSTRY_PRACTICES.md](research/INDUSTRY_PRACTICES.md) (what production systems do and what we adopted).
+- Companion docs in this folder: [README.md](README.md) (orientation) · [DEVELOPING.md](DEVELOPING.md) (how to work on it) · [OPERATIONS.md](OPERATIONS.md) (running and debugging) · [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) (file-by-file detail).
 
 ---
 
@@ -101,136 +101,158 @@ Two properties fall out of this shape:
 
 ## 4. The write gate
 
-Every write — tool save or background extraction — passes through the same gate. Most of it is free; the model is only consulted for genuinely ambiguous cases.
+Every write — tool save or background extraction — passes through the same gate. It runs in two halves: **free checks first**, then a similarity decision that only involves a model when the case is genuinely ambiguous.
+
+**Half one: the free checks.**
 
 ```mermaid
 flowchart TD
-    A["new content"] --> B["clean: strip fences,<br/>collapse whitespace, cap 500 chars"]
-    B --> C{"denylist match?<br/>IBAN / card / secret patterns"}
-    C -- yes --> R1["rejected — never stored"]
-    C -- no --> D{"exact text match<br/>in recent 20?"}
-    D -- yes --> R2["duplicate — dropped"]
-    D -- no --> E["embed the content"]
-    E --> F{"embedding available?"}
-    F -- no --> ADD["plain ADD"]
-    F -- yes --> G["cosine vs candidates in scope"]
-    G --> H{"top similarity ≥ 0.95<br/>AND new text richer?"}
-    H -- yes --> SUP["supersede: retire old,<br/>link superseded_by"]
-    H -- no --> I{"decider available<br/>AND top ≥ 0.30?"}
-    I -- no --> ADD
-    I -- yes --> J["gpt-5.4-mini sees top-5<br/>as an integer-indexed list"]
-    J --> K{"decision"}
-    K -- ADD --> ADD
-    K -- NONE --> R2
-    K -- "SUPERSEDE n" --> L{"observed_at guard:<br/>is the new fact newer?"}
-    L -- yes --> SUP
-    L -- no --> ADD
-    J -. any failure .-> ADD
+    A[new fact] --> B[clean it]
+    B --> C{sensitive pattern?}
+    C -->|yes| X[reject]
+    C -->|no| D{exact duplicate?}
+    D -->|yes| Y[drop]
+    D -->|no| E[embed and compare]
 ```
 
-**The 0.30 floor is measured, not borrowed.** A real changed-preference contradiction ("exactly three bullet points" → "five bullets now, not three") measured **cosine 0.309** on `text-embedding-3-large` at 1536 dimensions — far below the 0.70 band the literature suggests, which would have silently missed it. Every write emits one content-free telemetry line (`memory gate: top_sim=… tier=… action=…`) so future tuning stays data-driven.
+Cleaning strips our own fence markers, collapses whitespace and caps the text at 500 characters. The sensitive-pattern check is a regex denylist for IBAN-shaped strings, card-shaped digit runs and password/secret/token patterns. The duplicate check is a normalised text comparison against the recent window. All three cost nothing.
 
-**Failure always degrades toward ADD.** An extra row on an append-only table is harmless; a wrongly superseded fact is not.
+**Half two: the similarity decision.**
+
+```mermaid
+flowchart TD
+    E[embed and compare] --> F{"score >= 0.95 and new text richer?"}
+    F -->|yes| SUP[supersede]
+    F -->|no| G{"score >= 0.30 and decider available?"}
+    G -->|no| ADD[add]
+    G -->|yes| H[ask the small model]
+    H --> I{verdict}
+    I -->|ADD| ADD
+    I -->|NONE| DROP[drop]
+    I -->|SUPERSEDE n| J{is the new fact newer?}
+    J -->|yes| SUP
+    J -->|no| ADD
+```
+
+The model sees the top five candidates as an integer-indexed list and returns an index, which is range-validated — it cannot invent a target. The `observed_at` guard is enforced in code, not by the model: an older fact never replaces a newer one.
+
+**Anything that goes wrong lands on `add`.** No embedding, a malformed verdict, a model timeout, an exception mid-gate — all of them fall through to a plain add rather than risking a wrong supersede. An extra row on an append-only table is noise; a wrongly retired fact is damage.
+
+**The 0.30 floor is measured, not borrowed.** A real changed-preference contradiction ("exactly three bullet points" → "five bullets now, not three") measured **cosine 0.309** on `text-embedding-3-large` at 1536 dimensions — far below the 0.70 band the literature suggests, which would have silently missed it. Every write emits one content-free telemetry line (`memory gate: top_sim=… tier=… action=…`) so future tuning stays data-driven.
 
 ## 5. Retrieval and ranking
 
 Candidates are scored `0.7 × similarity + 0.3 × exp(−age_days / 30)`, with a minimum-similarity floor of 0.35 so weak matches are never injected just for being top-k, plus a small recency floor of always-included recent items. Up to 20 entries / 8,000 characters are injected per turn.
 
-Retrieval degrades in three rungs rather than failing:
+Retrieval degrades down three rungs rather than failing. It takes the highest rung available and never raises:
 
 ```mermaid
 flowchart TD
-    A["recall requested"] --> B{"pgvector enabled<br/>and query embedded?"}
-    B -- yes --> R1["rung 1: ORDER BY cosine_distance in SQL"]
-    B -- no --> C{"stored embeddings present?"}
-    C -- yes --> R2["rung 2: fetch recent N,<br/>rank in Python"]
-    C -- no --> R3["rung 3: pure recency"]
-    R1 --> OUT["ranked entries"]
-    R2 --> OUT
+    A[recall] --> B{query embedded?}
+    B -->|yes, pgvector on| R1[rung 1: rank in SQL]
+    B -->|yes, no pgvector| R2[rung 2: rank in Python]
+    B -->|no| R3[rung 3: recency only]
+    R1 --> F{"above the 0.35 floor?"}
+    R2 --> F
+    F -->|yes| OUT[inject block]
+    F -->|no| R3
     R3 --> OUT
-    OUT --> F{"anything above the<br/>0.35 similarity floor?"}
-    F -- no --> R3
-    F -- yes --> INJ["inject fenced block"]
 ```
+
+Rung 1 lets Postgres order by cosine distance. Rung 2 fetches the recent window and ranks in Python — same maths, no extension needed. Rung 3 ignores meaning entirely and returns the newest entries, which is what happens when the embedder is unavailable. The floor exists so that a weak match is never injected merely for being the best of a bad set; if nothing clears it, recall falls back to recency rather than injecting noise.
 
 No ANN index exists by design: within an already scope-filtered set, an exact cosine scan is both faster and 100% recall at this size. HNSW is documented as the growth step once a single scope exceeds tens of thousands of rows.
 
 ## 6. Data model
 
+Four tables, all keyed by the same three scope columns: `profile_id`, `user_id`, `tenant_id`.
+
 ```mermaid
 erDiagram
+    agent_memory_entries ||--o{ agent_memory_entries : replaces
+    agent_memory_entries ||--o{ agent_memory_audit : records
+
     agent_memory_entries {
-        string  id PK
-        string  profile_id  "scope"
-        string  user_id     "scope"
-        string  tenant_id   "scope"
-        text    content
-        string  category    "preference|fact|context|note"
-        string  source      "tool|extraction"
-        string  thread_id
-        vector  embedding   "1536 dims, nullable"
-        string  superseded_by "-> entries.id"
-        ts      observed_at "when the fact was true"
-        ts      created_at  "when it was ingested"
-        ts      discarded_at "soft delete"
+        string id PK
+        text content
+        vector embedding
+        string superseded_by FK
+        timestamp observed_at
+        timestamp created_at
+        timestamp discarded_at
     }
     agent_memory_outbox {
-        string  id PK
-        string  profile_id
-        string  user_id
-        string  tenant_id
-        string  thread_id
-        text    user_text
-        text    assistant_text
-        string  status      "pending|failed"
-        int     attempts
-        ts      next_attempt_at "also the lease"
-        ts      created_at
-        text    last_error
+        string id PK
+        text user_text
+        text assistant_text
+        string status
+        int attempts
+        timestamp next_attempt_at
+    }
+    agent_memory_audit {
+        string id PK
+        string action
+        string entry_id
+        string actor
+        timestamp created_at
     }
     agent_memory_user_models {
-        string  id PK
-        string  profile_id
-        string  user_id
-        string  tenant_id
-        text    content     "reserved: synthesised profile"
-        int     version
+        string id PK
+        text content
+        boolean memory_disabled
+        int version
     }
-    agent_memory_entries ||--o{ agent_memory_entries : "superseded_by"
 ```
 
-Design notes worth knowing:
+| Table | Holds | Notes |
+|---|---|---|
+| `agent_memory_entries` | The memories themselves | Append-only. Scope columns plus `category` (preference / fact / context / note) and `source` (tool / extraction). |
+| `agent_memory_outbox` | Pending extraction jobs | One row per eligible turn until a worker drains it. `next_attempt_at` doubles as the claim lease. |
+| `agent_memory_audit` | Every mutation | Action, scope, actor, source, and counts — **never memory text**. |
+| `agent_memory_user_models` | Per-user settings today, synthesised profiles tomorrow | Currently only the `memory_disabled` opt-out flag is used; `content` is reserved for consolidation. |
+
+Three column choices carry weight:
 
 - **`observed_at` vs `created_at` are deliberately different.** One is when the fact became true, the other when we learned it. The supersede guard compares event time, so an older fact can never overwrite a newer one.
-- **Nothing is ever hard-deleted at runtime.** `discarded_at` retires a row; `superseded_by` records what replaced it. The chain *is* the audit trail.
-- **`agent_memory_user_models` ships empty.** It is the reserved home for consolidated per-user profiles — the direction ChatGPT, Claude and Gemini are all converging on.
+- **`superseded_by` points at the replacement.** Combined with `discarded_at` (the soft delete), the chain *is* the audit trail — nothing is hard-deleted at runtime, so you can always reconstruct what the agent knew and when.
+- **`embedding` is nullable.** A write with no embedding still succeeds; retrieval simply drops to a lower rung for that row, and a backfill can fill it in later.
 
 ## 7. Durable extraction: the outbox
 
 Background extraction used to be fire-and-forget: if the process died between a turn ending and extraction finishing, that memory was lost — and one newer harness completion path skipped it entirely. Now every eligible turn **durably enqueues** a job, and a worker drains it.
 
+A queued job moves through four states:
+
 ```mermaid
 stateDiagram-v2
-    [*] --> pending: turn completes,<br/>row enqueued
-    pending --> leased: worker claims<br/>short txn, attempts++,<br/>next_attempt_at = now + lease
-    leased --> [*]: success — row deleted
-    leased --> pending: error — backoff<br/>min(60·2^n, 3600)s
-    leased --> pending: worker died —<br/>lease expires, row reappears
-    pending --> failed: attempts ≥ 5<br/>row kept with last_error
-    failed --> [*]: inspected manually
+    [*] --> pending: turn ends
+    pending --> leased: worker claims it
+    leased --> [*]: success
+    leased --> pending: retry or lease expiry
+    pending --> failed: 5 attempts
+    failed --> [*]: manual review
 ```
 
-The worker copies the harness's own `ProfileHealthMonitor` pattern: a service object started in the app lifespan and stopped **before** the databases close. Its cycle is deliberately three separate short transactions:
+| Transition | What actually happens |
+|---|---|
+| `→ pending` | The turn writes one row with the exchange text and the scope. |
+| `pending → leased` | The worker increments `attempts` and pushes `next_attempt_at` five minutes out, then commits. That future timestamp *is* the lease. |
+| `leased → [*]` | Extraction succeeded; the row is deleted. |
+| `leased → pending` | Either the extraction failed (back off `min(60·2ⁿ, 3600)` seconds) or the worker died before finishing — in which case the lease simply expires and the row becomes claimable again. Nothing gets stuck. |
+| `pending → failed` | After five attempts the row stops being retried and is kept with its `last_error` for inspection. |
+
+The worker copies the harness's own `ProfileHealthMonitor` pattern: a service object started in the app lifespan and stopped **before** the databases close. Each cycle is three separate short transactions:
 
 ```mermaid
 flowchart LR
-    A["claim<br/>SHORT txn"] --> B["process<br/>NO session held"] --> C["finalize<br/>SHORT txn"]
-    A -. "FOR UPDATE SKIP LOCKED<br/>lease, then COMMIT" .-> A
-    B -. "LLM extraction<br/>seconds to a minute" .-> B
-    C -. "DELETE on success,<br/>backoff on error" .-> C
+    A[1. claim] --> B[2. extract] --> C[3. finalize]
 ```
 
-That ordering matters: model calls never happen inside an open transaction, so a slow extraction can never hold a pooled connection or a row lock. Delivery is **at-least-once**; the write gate's dedup makes replays harmless.
+1. **Claim** — select due rows (`FOR UPDATE SKIP LOCKED` on Postgres), lease them, **commit**. Milliseconds.
+2. **Extract** — run the model with **no database session held**. Seconds to a minute.
+3. **Finalize** — delete on success, or record the error and back off. Milliseconds.
+
+That ordering is the whole point. Our first version held the claim transaction open across the model call, which parks a pooled connection and a row lock for a minute at a time; the split means a slow extraction can never do that. Delivery is **at-least-once**, and the write gate's dedup makes replays harmless.
 
 **Verified end to end:** a turn was enqueued with the worker disabled, the server was killed, and on restart the worker drained the backlog (`memory outbox: processed=4 failed=0`, outbox empty) and the next turn recalled the new memory.
 
@@ -238,13 +260,15 @@ That ordering matters: model calls never happen inside an open transaction, so a
 
 ```mermaid
 flowchart TD
-    A["turn arrives"] --> B{"profile flag<br/>semantic_memory_enabled?"}
-    B -- false --> OFF["no memory code runs"]
-    B -- true --> C{"validated user_id?"}
-    C -- no --> GATE["memory disabled for this turn<br/>one content-free log line"]
-    C -- yes --> D{"tenant_id present?"}
-    D -- no --> GATE
-    D -- yes --> ON["recall + tool + extraction active,<br/>all keyed to profile × user × tenant"]
+    A[turn arrives] --> B{memory flag on?}
+    B -->|no| OFF[no memory code runs]
+    B -->|yes| C{user id present?}
+    C -->|no| GATE["disabled for this turn"]
+    C -->|yes| D{tenant id present?}
+    D -->|no| GATE
+    D -->|yes| E{user opted out?}
+    E -->|yes| GATE
+    E -->|no| ON["recall, tool and extraction active"]
 ```
 
 Fail-closed by construction: the same predicate gates recall, extraction, and the tool (the tool is gated implicitly — it is enabled through the same run-context flag, so no tool-side change was needed). Harness paths no longer fall back to a `"default"` tenant sentinel.
@@ -257,16 +281,19 @@ Schema is versioned with Alembic — introduced to the harness as part of this w
 
 ```mermaid
 flowchart LR
-    M["models.py<br/>declarative tables"] --> A["alembic revision<br/>--autogenerate"]
-    A --> R["reviewed revision file<br/>readable DDL in the MR"]
-    R --> NEW["new environment:<br/>alembic upgrade head"]
-    R --> EXIST["existing database:<br/>stamp once, then upgrade"]
-    NEW --> V["alembic check<br/>= no drift"]
-    EXIST --> V
+    M[edit models.py] --> A[generate revision] --> R[review the DDL] --> U[upgrade head]
 ```
 
-- Revision `5258f2433fcb` is a reviewed baseline of the **entire** harness schema, including the memory tables and a `CREATE EXTENSION IF NOT EXISTS vector` guard.
-- Revision `6f4f8e6f7f55` adds the outbox table — the framework's first real incremental change.
+A change to the models generates a revision file; you read that file (autogenerate gets vector columns and server defaults wrong often enough that review is not optional); then every environment runs `alembic upgrade head`. A database that already has the tables adopts the chain once with `alembic stamp head`, and `alembic check` afterwards proves the models and the database agree.
+
+The chain so far:
+
+| Revision | Adds |
+|---|---|
+| `5258f2433fcb` | Baseline: the entire harness schema, memory tables included, with a `CREATE EXTENSION IF NOT EXISTS vector` guard |
+| `6f4f8e6f7f55` | The outbox table |
+| `4f743f1f0d2d` | The audit table and the per-user opt-out flag |
+
 - `create_all` survives only as local/test bootstrap and is documented as such.
 - Because the dev database is **shared with another application**, Alembic is scoped to harness-owned tables: the `studio_*` tables and the SDK-managed `agent_sessions` / `agent_messages` are deliberately unmanaged, as is one hand-applied index on `agent_runs` that exists in the database with no owner in code (flagged for the team to decide on).
 
