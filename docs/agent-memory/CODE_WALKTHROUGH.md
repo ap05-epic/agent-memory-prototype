@@ -220,12 +220,13 @@ Three revisions: `5258f2433fcb` (full-schema baseline, with a `CREATE EXTENSION 
 | File | Tests | Covers |
 |---|---|---|
 | `test_agent_memory_sessions.py` | 3 | installed factory is used; standalone fallback; a write travels through an injected factory |
+| `test_agent_memory_identity.py` | — | the `memory_identity_ok` truth table (no user, user only, tenant only, both); run-context gating; and the **off-by-default guard** that walks every non-test profile and asserts none enables semantic memory |
 | `test_agent_memory_input_channel.py` | 4 | input-list ordering; resume-path guard; the adapter carries no memory parameter; the session filter drops memory items |
 | `test_agent_memory_outbox.py` | 6 | enqueue; claim commits before processing; success deletes; retry and backoff; the failure cap; fallback on enqueue error |
 | `test_agent_memory_governance.py` | 7 | scope isolation; cross-scope delete protection; forget; opt-out round trip; purge windows; audit rows contain no content; the list and forget routes |
 | `test_migrations.py` | 4 | alembic config loads; exactly one head; linear chain; memory tables present in the baseline |
 
-> **Gap under investigation:** the identity coverage from the hardening workstream — the `memory_identity_ok` truth table, the run-context gating, and the **off-by-default guard** that asserts no non-test profile enables memory — is not present as a `test_agent_memory_identity.py` file on this branch. Until that is located or rewritten, treat "a test enforces off-by-default" as unverified.
+The off-by-default guard is the mechanism behind the claim that memory cannot be switched on accidentally: it reads every profile YAML under the real profile paths and fails the build if any of them sets the flag.
 
 Plus the standalone verify scripts (`verify_phase_a/b/c.py`) in this repository, which exercise the live database and embedder end to end.
 
