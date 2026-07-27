@@ -2,7 +2,11 @@
 
 **Why:** each workstream shipped its own tests, which means coverage follows the *order we built things* rather than *where the risk is*. The write gate and the ranking maths are the most intricate code in the system, have no database or network dependencies, and are the cheapest things here to test exhaustively — yet today they are only exercised indirectly through the live verify scripts. Several functions also carry an explicit "this can never raise" contract that nothing asserts. This brief closes those gaps.
 
-**Where:** `/projects/DigitHarnessRepo/digit-agent-harness-v3`, branch `feature/agentmemory-v3`. These tests land on the candidate-2 branch; the candidate-1 branch is frozen. Standard rules apply. No production code changes except where a test proves a genuine bug — if that happens, STOP and report before fixing.
+**Where:** `/projects/DigitHarnessRepo/digit-agent-harness-v3`, branch `feature/agentmemory-v3` (now merged with dev; the candidate-1 snapshot branch is frozen). Standard rules apply. No production code changes except where a test proves a genuine bug — if that happens, STOP and report before fixing.
+
+**Baseline as of the dev merge: the full suite is 420 passed, 0 failed.** The two long-standing dev failures we used to carry are fixed upstream. So any failure you see is either yours or a real defect — there is no longer a "known failures" allowance.
+
+**What already exists — do not duplicate it.** `test_agent_memory_sessions.py` (3), `test_agent_memory_identity.py` (truth table, context gating, the off-by-default profile guard), `test_agent_memory_input_channel.py` (4), `test_agent_memory_outbox.py` (6), `test_agent_memory_governance.py` (7), `test_migrations.py` (4). Everything below is new coverage in new files.
 
 **Style:** plain pytest with `asyncio.run(...)`, matching the existing memory test files. Database-touching tests use an aiosqlite factory installed via `_digit.install_session_factory`, with tables created from `Base.metadata`. No network: stub the embedder and the decider by monkeypatching `_digit.embed` and passing fake `decide` callables.
 
@@ -81,11 +85,14 @@ The heart of the system. Every case here is fast and deterministic.
 41. Two users in the same profile and two tenants for the same user: each recall returns only its own scope.
 42. Supersede round trip: save a fact, save a contradiction through the decider stub, then recall — only the newer fact appears, and the database shows the chain.
 
-`tests/test_agent_memory_regressions.py` — cheap guards against silently undoing hard-won decisions:
+`tests/test_agent_memory_regressions.py` — cheap structural guards against silently undoing hard-won decisions. **These matter more than they look: the dev merge nearly dropped an import and did break the completion path, and neither was visible to the compiler.** Each of these is a source-text or signature assertion, not a behavioural test.
 
-43. No `"default"` tenant fallback survives in the runner's memory blocks (source-text assertion on the memory-adjacent regions) — guards the W6 identity work.
-44. `sdk_adapter` contains no reference to `memory_block` or `<user_memory>` — guards the W3 channel move.
-45. The off-by-default guard already exists; assert it is present and passing (do not duplicate it).
+43. No `"default"` tenant fallback appears in the runner's memory regions — guards the identity work.
+44. `sdk_adapter` contains no reference to `memory_block` or `<user_memory>` — guards the channel move.
+45. `api/app.py` imports both `MemoryExtractionWorker` and `MemoryRetentionWorker` and references each at least once — this exact import was silently deleted during the merge and only a grep caught it.
+46. `sdk_runner.py` contains exactly one call to the extraction-enqueue helper, and the helper is defined once — guards against a future merge duplicating or dropping the enqueue.
+47. `sdk_runner.py` calls `memory_identity_ok` in both the recall guard and the enqueue helper — guards the fail-closed identity gate against a merge resolution that keeps the code but loses a guard.
+48. The memory routes in `api/app.py` are all `async def` — guards against the event-loop bug returning (a sync handler bridging into async store calls breaks the shared pool).
 
 ## Out of scope, deliberately (state this in the report)
 
