@@ -31,6 +31,7 @@ The flag alone gives the agent recall and automatic extraction; the tool adds ex
 | `AGENT_FACTORY_MEMORY_OUTBOX_ENABLED` | `true` | Run the extraction worker |
 | `AGENT_FACTORY_MEMORY_OUTBOX_INTERVAL_SECONDS` | `3.0` | How often it drains the queue |
 | `AGENT_FACTORY_MEMORY_RETENTION_DAYS` | unset | How long soft-deleted rows survive before permanent removal. **Unset means nothing is ever purged.** |
+| `AGENT_FACTORY_MEMORY_RETENTION_INTERVAL_SECONDS` | `3600.0` | How often the retention worker checks |
 | `AGENT_FACTORY_MEMORY_QUIET` | off | Silence the package's own log handler |
 
 `AGENT_FACTORY_MEMORY_EMBED_DIM` and `AGENT_FACTORY_MEMORY_PGVECTOR` are read **at import time** and decide the column type the code expects. If two processes disagree about them while sharing one database, writes fail — the write path retries without the embedding so content still persists, and logs a warning naming both values.
@@ -97,6 +98,7 @@ All memory lines carry ids, counts and outcomes — **never memory content**.
 | `memory gate: top_sim=… tier=… action=…` | One per write: how similar the closest existing memory was, which tier decided, what happened. |
 | `memory add id=… source=… superseded=…` | A memory was written; `superseded=True` means it replaced an older one. |
 | `memory identity gate: disabled for turn` | The turn lacked a user or tenant, so memory did nothing. |
+| `memory disabled by user preference` | The user has opted out on this agent; memory did nothing for the turn. |
 | `memory outbox: processed=N failed=M` | The extraction worker drained a batch. |
 | `memory retention: purged=N` | Old soft-deleted rows were permanently removed. |
 

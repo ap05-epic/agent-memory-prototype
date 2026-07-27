@@ -307,7 +307,9 @@ The chain so far:
 | `AGENT_FACTORY_MEMORY_EMBED_DIM` | env | `1536` | Dimensions requested from the embedder |
 | `AGENT_FACTORY_MEMORY_MODEL` | env | harness default | Model for gate decisions and extraction |
 | `AGENT_FACTORY_MEMORY_OUTBOX_ENABLED` | env | `true` | Run the extraction worker |
-| `AGENT_FACTORY_MEMORY_OUTBOX_INTERVAL_SECONDS` | env | `3.0` | Worker poll interval |
+| `AGENT_FACTORY_MEMORY_OUTBOX_INTERVAL_SECONDS` | env | `3.0` | Extraction worker poll interval |
+| `AGENT_FACTORY_MEMORY_RETENTION_DAYS` | env | unset | Age after which soft-deleted rows are purged. Unset means never |
+| `AGENT_FACTORY_MEMORY_RETENTION_INTERVAL_SECONDS` | env | `3600.0` | Retention worker poll interval |
 | `AGENT_FACTORY_MEMORY_QUIET` | env | off | Silence the package's own log handler |
 
 ## 11. Failure modes
