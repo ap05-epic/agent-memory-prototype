@@ -343,7 +343,7 @@ The chain so far:
 | Test coverage incl. off-by-default guard | Done |
 | Recall out of the instruction channel | Done |
 | Durable extraction (outbox + worker) | Done |
-| Governed APIs, audit trail, retention | Built; final live verification in progress |
+| Governed APIs, audit trail, retention | Done |
 | Console tenant plumbing | Next — this is what re-enables memory in the console |
 | Consolidation into per-user profiles | Designed, deferred |
 

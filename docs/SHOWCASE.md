@@ -103,7 +103,7 @@ The prototype was reviewed by the team lead, and the response was split into two
 |---|---|
 | Recalled memory out of the instruction channel, into the data channel | ✅ built, live-verified |
 | Durable extraction — outbox table + background worker, survives restarts | ✅ built, live-verified |
-| Governed APIs (view / delete / forget / disable), audit trail, retention | ✅ built, verification in progress |
+| Governed APIs (view / delete / forget / disable), audit trail, retention | ✅ built, live-verified |
 | Console tenant plumbing (re-enables memory for console traffic) | next |
 
 ---

@@ -5,7 +5,7 @@ The engineering companion to [ARCHITECTURE.md](ARCHITECTURE.md). That document e
 **Where the code lives.** The package is `src/agent_factory/memory/` on the harness (branch `feature/agentmemory-v3`). This repository mirrors it at `memory/` for authoring. Two caveats while reading:
 
 - The mirror lags the harness: `session_filter.py`, `outbox.py`, `retention.py` and the governance functions in `store.py` exist on the harness only, pending the next reconciliation.
-- **Commit status differs by section.** Everything through §9 is committed and pushed on `feature/agentmemory-v3`. §10 (retention), the governance functions in §4 and the endpoints in §11 are written and tested, with final live verification in progress. The frozen review snapshot `feature/agentmemory-mc1` contains none of §7–§10 — it stops at the identity work.
+- **Everything described here is committed and pushed on `feature/agentmemory-v3`.** The frozen review snapshot `feature/agentmemory-mc1` contains none of §7–§10 — it stops at the identity work.
 
 ---
 

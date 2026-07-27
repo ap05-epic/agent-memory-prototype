@@ -36,7 +36,7 @@ The feature is built and verified; it is not yet enabled for general use.
 
 **Working and verified:** the tool and automatic extraction, semantic recall with relevance-and-recency ranking, supersede-on-contradiction, per-(agent, user, tenant) scoping, the fail-closed identity gate, schema managed by Alembic migrations, memory running on the harness's own database lifecycle, durable extraction that survives restarts, and recalled memory travelling in the model's data channel rather than its instructions.
 
-**Built, final verification in progress:** the governed API layer — view, delete, forget or disable your own memories — with an append-only audit trail and a retention worker for scheduled permanent deletion.
+**Also working and verified:** the governed API layer — view, delete, forget or disable your own memories — with an append-only audit trail and a retention worker for scheduled permanent deletion. Verified live: a caller cannot read another user's memories, another tenant's memories, or impersonate anyone by query parameter; the audit trail records every mutation and contains no memory text.
 
 **Next:** the console tenant plumbing that will re-enable memory in the UI. Until it lands, memory is inert from the console by design, because the console does not yet send a tenant and identity is fail-closed.
 
