@@ -33,8 +33,23 @@ The flag alone gives the agent recall and automatic extraction; the tool adds ex
 | `AGENT_FACTORY_MEMORY_RETENTION_DAYS` | unset | How long soft-deleted rows survive before permanent removal. **Unset means nothing is ever purged.** |
 | `AGENT_FACTORY_MEMORY_RETENTION_INTERVAL_SECONDS` | `3600.0` | How often the retention worker checks |
 | `AGENT_FACTORY_MEMORY_QUIET` | off | Silence the package's own log handler |
+| `DIGIT_CONSOLE_TENANT_ID` | unset | **Console-side.** The tenant the console sends with each turn. Unset means the console sends no tenant and memory stays off in the UI. |
 
 `AGENT_FACTORY_MEMORY_EMBED_DIM` and `AGENT_FACTORY_MEMORY_PGVECTOR` are read **at import time** and decide the column type the code expects. If two processes disagree about them while sharing one database, writes fail — the write path retries without the embedding so content still persists, and logs a warning naming both values.
+
+## Turning it on in the console
+
+Memory needs a tenant, and the console has no tenant claim to read, so it takes one from server-side configuration:
+
+```bash
+DIGIT_CONSOLE_TENANT_ID=t-demo    # in the console's environment
+```
+
+With it set, the console includes `tenant_id` in the `user` object on every turn and memory behaves in the browser exactly as it does over curl. With it unset, the console sends no tenant, memory stays off, and nothing else changes — the fail-closed posture is preserved either way.
+
+The console also proxies the memory endpoints under `/api/harness/memory/...`, forwarding the caller's `x-user-id` and `x-tenant-id`. There is no memory UI yet; the routes exist so one can be built.
+
+**When real authentication arrives**, replace the config read with the signed-in user's tenant claim — it is a one-line change at a single site in `agent-console/lib/harness.ts`.
 
 ## The memory API
 

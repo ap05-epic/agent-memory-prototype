@@ -344,7 +344,7 @@ The chain so far:
 | Recall out of the instruction channel | Done |
 | Durable extraction (outbox + worker) | Done |
 | Governed APIs, audit trail, retention | Done |
-| Console tenant plumbing | Next — this is what re-enables memory in the console |
+| Console tenant plumbing | Done — the console sends a configured tenant, so memory works in the UI |
 | Consolidation into per-user profiles | Designed, deferred |
 
 **Branch topology.** `feature/agentmemory-v3` is the working branch and carries everything. `feature/agentmemory-mc1` is a frozen snapshot of the foundation work — the first six rows of that table — captured for review; nothing new lands on it, so work on the main branch cannot disturb it.

@@ -38,7 +38,7 @@ The feature is built and verified; it is not yet enabled for general use.
 
 **Also working and verified:** the governed API layer — view, delete, forget or disable your own memories — with an append-only audit trail and a retention worker for scheduled permanent deletion. Verified live: a caller cannot read another user's memories, another tenant's memories, or impersonate anyone by query parameter; the audit trail records every mutation and contains no memory text.
 
-**Next:** the console tenant plumbing that will re-enable memory in the UI. Until it lands, memory is inert from the console by design, because the console does not yet send a tenant and identity is fail-closed.
+**Also done:** the console sends a configured tenant, so memory works in the browser and not only over curl, and the memory endpoints are proxied for a future UI. See [OPERATIONS.md](OPERATIONS.md) for how to switch it on.
 
 **Deliberately not built:** consolidation of many small memories into a per-user summary. It is designed, the table is reserved, and it is the natural next step once the governance work lands.
 
