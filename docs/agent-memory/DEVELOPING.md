@@ -60,7 +60,7 @@ python scripts/verify_phase_c.py           # live: the semantic layer, 12 checks
 
 The `verify_phase_*` scripts talk to a real database (and optionally a real embedder) and print `PHASE_x: PASS|FAIL`. They exist because unit tests with fakes cannot catch a vector-column dimension mismatch or a credential problem — both of which have bitten us.
 
-Two failures in the full suite are **pre-existing on dev** and not yours: `test_turn_stream_custom_mcp_reaches_sdk_agent` and `test_turn_service_immediate_stream_does_not_block_on_event_journal`. Confirm any new failure isn't one of those before investigating.
+**The suite is green.** At the last dev merge it stood at 466 passed, 2 skipped, none failing. There is no allowance for known failures any more: if something fails, it is either yours or a real defect. (For a while two failures on dev were carried as not-ours; dev fixed them, so that exemption is gone.)
 
 **Writing tests:** plain pytest with `asyncio.run(...)`; no async plugin is configured. For anything touching the database, install an aiosqlite factory via `_digit.install_session_factory(...)` and create tables from `Base.metadata`. Stub the embedder by monkeypatching `_digit.embed`, and pass a fake `decide` callable rather than reaching a real model.
 

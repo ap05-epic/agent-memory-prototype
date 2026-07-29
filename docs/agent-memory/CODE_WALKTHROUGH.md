@@ -2,6 +2,8 @@
 
 The engineering companion to [ARCHITECTURE.md](ARCHITECTURE.md). That document explains *what the system does* with diagrams; this one walks the actual code: what each file contains, what each function is for, why it is written the way it is, and exactly where the harness was touched.
 
+> **A note on the "W" numbers.** Tags like *(W4)* refer to the workstreams this feature was built in — W3 moved recall out of the instruction channel, W4 added the outbox, W2 added the governance layer, and so on. They are useful when reading commit history and can be ignored otherwise.
+
 **Where the code lives.** The package is `src/agent_factory/memory/` on the harness (branch `feature/agentmemory-v3`). This repository mirrors it at `memory/` for authoring. Two caveats while reading:
 
 - The mirror lags the harness: `session_filter.py`, `outbox.py`, `retention.py` and the governance functions in `store.py` exist on the harness only, pending the next reconciliation.
