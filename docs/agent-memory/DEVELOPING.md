@@ -13,7 +13,14 @@ src/agent_factory/memory/     the feature; self-contained
   extraction.py  outbox.py  retention.py  session_filter.py
 tests/test_agent_memory_*.py  the test suite
 migrations/versions/          schema changes
+
+agent-console/                the dev console (separate Next.js app)
+  lib/harness.ts              tenant config + header forwarding
+  app/api/harness/chat/       turn requests (adds tenant_id)
+  app/api/harness/memory/     six proxy routes to the memory endpoints
 ```
+
+The console uses **pnpm**, not npm — `npm install` fails there. Build it with `pnpm build`.
 
 **The seam rule:** every harness import lives in `_digit.py`. Sessions, logging, model calls, embeddings, identity extraction — all of it. Everything else in the package is plain Python that can be unit-tested without a harness, a database, or a network. If you find yourself importing `agent_factory.something` into any other memory file, stop: that dependency belongs in the seam.
 

@@ -88,6 +88,18 @@ The system stores personal information, so its own telemetry must not become a s
 
 A flag that defaults false is a promise; a test that fails the build when any non-test profile turns it on is a guarantee. The distinction mattered to the review, and it costs about fifteen lines.
 
+### 16. The console's tenant comes from configuration, not from the user
+
+**Alternatives:** read it from the signed-in user's claims; let the browser supply it.
+
+The console has no tenant claim to read yet, and a value the browser can set is a value an attacker can set — so the tenant is a server-side configuration value the browser never sees. It defaults to unset, which means an unconfigured console sends no tenant and memory simply stays off, preserving the fail-closed posture rather than inventing a tenant to make the demo work.
+
+This is explicitly a staging post, not the end state: when the console has real authentication, the config read becomes a claim read at one site. That is written into the code walkthrough so the next person does not have to infer it.
+
+### 17. No memory management UI yet
+
+The six endpoints are proxied through the console, but nothing renders them. A screen that shows people what an agent remembers about them is a genuine product design question — what to show, how to phrase deletion, whether to explain provenance — and guessing at it in a dev console would produce something nobody wants to inherit. The plumbing is done so that whoever designs it does not also have to build it.
+
 ---
 
 ## Things we deliberately have not done

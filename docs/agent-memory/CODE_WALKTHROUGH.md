@@ -200,6 +200,18 @@ only when `run_input` is None — resume/`RunState` paths are untouched. The SDK
 
 **`runtime/sdk_adapter.py`** — *nothing*. W3 deleted the v1 `memory_block` parameter, returning the adapter to the team's original code.
 
+### The console side
+
+The console is a separate Next.js app, and its involvement is deliberately thin — it supplies identity and proxies requests. It holds no memory logic.
+
+- **`agent-console/lib/harness.ts`** — reads `DIGIT_CONSOLE_TENANT_ID` **server-side only** (never exposed to the browser bundle) and provides the header-forwarding helper used by the memory proxies.
+- **`agent-console/app/api/harness/chat/route.ts`** — includes `tenant_id` in the `user` object on turn requests *when the value is configured*. Unset means the field is absent and memory stays off, so an unconfigured console behaves exactly as it did before this existed.
+- **`agent-console/app/api/harness/memory/…`** — six proxy routes (`route.ts`, `status/route.ts`, `[entryId]/route.ts`, `forget/route.ts`, `disable/route.ts`, `enable/route.ts`) forwarding the caller's `x-user-id` and `x-tenant-id` to the harness endpoints. There is no memory UI; the routes exist so one can be built.
+
+The harness needed no changes for any of this: `_caller_tenant_id` already read `x-tenant-id`, and `UserContext` already accepted `tenant_id`. The entire gap was the console never sending one.
+
+**Note for whoever adds real authentication:** replace the config read in `lib/harness.ts` with the signed-in user's tenant claim. It is one line at one site.
+
 ## 12. Migrations
 
 `migrations/env.py` targets `Base.metadata` with both model modules imported, sets `AGENT_FACTORY_MEMORY_PGVECTOR=1` so the vector column type is deterministic when authoring, and — because the dev database is shared with another application — scopes autogeneration:

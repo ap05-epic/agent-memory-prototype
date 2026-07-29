@@ -32,15 +32,37 @@ Picking up work on this? Read this page, then ARCHITECTURE and DEVELOPING — ab
 
 ## What exists today
 
-The feature is built and verified; it is not yet enabled for general use.
+Everything below is built and verified. The feature is **not enabled for general use** — that is a deliberate switch, not an unfinished edge.
 
-**Working and verified:** the tool and automatic extraction, semantic recall with relevance-and-recency ranking, supersede-on-contradiction, per-(agent, user, tenant) scoping, the fail-closed identity gate, schema managed by Alembic migrations, memory running on the harness's own database lifecycle, durable extraction that survives restarts, and recalled memory travelling in the model's data channel rather than its instructions.
+| Capability | State |
+|---|---|
+| Explicit saves via the `save_memory` tool | Live-verified |
+| Automatic capture from finished turns | Live-verified |
+| Semantic recall ranked by relevance and recency | Live-verified |
+| Supersede on contradiction, with the history kept | Live-verified |
+| Scoping per agent, user and tenant | Live-verified, including cross-user and cross-tenant checks |
+| Fail-closed identity gate | Live-verified both ways — works with identity, silent without |
+| Schema through Alembic migrations | Applied and drift-free against the live database |
+| Running on the harness's own database lifecycle | Verified by log receipt: no private engine in-app |
+| Durable extraction surviving restarts | Live-verified: killed mid-flight, drained on boot |
+| Recall in the data channel, out of the instruction channel | Live-verified, with zero rows leaking into stored history |
+| View, delete, forget and disable your own memories | Live-verified, with an audit row per mutation |
+| Audit trail and retention worker | Built; retention purges only when a window is configured |
+| Memory in the console UI | Works when a tenant is configured |
+| Consolidation into per-user summaries | **Designed, not built** — see the decision record |
 
-**Also working and verified:** the governed API layer — view, delete, forget or disable your own memories — with an append-only audit trail and a retention worker for scheduled permanent deletion. Verified live: a caller cannot read another user's memories, another tenant's memories, or impersonate anyone by query parameter; the audit trail records every mutation and contains no memory text.
+## Explaining this to someone
 
-**Also done:** the console sends a configured tenant, so memory works in the browser and not only over curl, and the memory endpoints are proxied for a future UI. See [OPERATIONS.md](OPERATIONS.md) for how to switch it on.
+Three depths. Pick by who is asking and how long you have.
 
-**Deliberately not built:** consolidation of many small memories into a per-user summary. It is designed, the table is reserved, and it is the natural next step once the governance work lands.
+**Thirty seconds — anyone.**
+> DIGIT agents forget everything between conversations, so people repeat themselves constantly. This gives an agent durable memory of each specific user — their preferences, corrections, working context — that survives new threads and restarts. It lives in the database the harness already uses, it is off by default, and it is scoped so one user can never see another's memories.
+
+**Five minutes — an engineer or a manager.** Walk one turn, because the whole design falls out of it: a turn arrives → the agent checks a flag and the caller's identity → relevant memories are ranked and passed to the model *as data, never as instructions* → the model answers → anything durable the user said gets saved, either explicitly through a tool or automatically afterwards → every write passes a gate that deduplicates and retires contradicted facts rather than overwriting them. Then the two properties that matter: **it can never break a turn** (every failure degrades or does nothing), and **nothing is destroyed** (soft deletes and supersede chains are the audit trail). Show [ARCHITECTURE.md](ARCHITECTURE.md)'s turn diagram while you say it.
+
+**Fifteen minutes — someone who will work on it or review it.** The five-minute version, then the three things that are non-obvious: the similarity thresholds are *measured from our own telemetry*, not taken from papers, and they do not transfer if you change the embedding model; recall lives in the data channel specifically because instructions are the authority channel and stored user data does not belong there; and identity is fail-closed, so no validated user and tenant means no memory rather than a guess. Finish with [DECISIONS.md](DECISIONS.md) — it answers "why not the obvious thing?" for every choice that looks strange.
+
+**If they want to go deeper**, the reading order is this page → ARCHITECTURE → DECISIONS → DEVELOPING → CODE_WALKTHROUGH, and they can stop at any point and still have a complete picture at that depth. Do not hand someone the walkthrough first; it is a reference, not an introduction.
 
 ## The five things worth knowing before you touch it
 
