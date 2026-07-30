@@ -62,6 +62,42 @@ flowchart LR
 
 ## 3. Anatomy of one turn
 
+### First, the pipeline memory attaches to
+
+A normal message flows through the harness like this, with or without memory:
+
+```mermaid
+flowchart LR
+    A[console or API client] --> B["POST /api/v1/turns/stream"]
+    B --> C["TurnService<br/>start_sdk_turn"]
+    C --> D["prepare and persist<br/>thread, run, first events"]
+    D --> E["SdkRunnerAdapter<br/>stream_turn"]
+    E --> F["build instructions,<br/>agent and session"]
+    F --> G["Runner.run_streamed"]
+    G --> H["stream events<br/>back to the caller"]
+    H --> I["terminal block:<br/>audit, run.completed"]
+```
+
+`TurnService` validates the caller and writes the thread and run records inline before streaming starts; `stream_turn` assembles instructions, builds the agent and the session, calls the model, relays events as they arrive, and finishes in a terminal block that emits the governance audit and `run.completed`. **With memory disabled, that is the entire story** — no memory code loads, and the turn is byte-for-byte what it was before this feature existed.
+
+### Where memory attaches
+
+Memory does not replace any of that. It attaches at four points inside `stream_turn`, plus one thing that happens entirely outside the turn:
+
+| | Where | What happens | On the critical path? |
+|---|---|---|---|
+| 1 | Before the agent is built | Identity and opt-out checks, then recall: embed the message, fetch and rank, emit the 🧠 indicator | **Yes** — this is the added latency |
+| 2 | Run-context construction | Sets `memory_enabled`, which is what makes `save_memory` available to the agent | Yes, but negligible — a dictionary entry |
+| 3 | During the turn | The agent may call `save_memory`; that write runs the full gate | Only when the agent chooses to save |
+| 4 | The terminal block | One row inserted into the outbox queue | Yes, but tiny — a single insert |
+| 5 | **After the turn**, in a background worker | The actual extraction: model call, gate, write | **No** — the user has already got their answer |
+
+The important distinction is between rows 1 and 5. **Recall must be synchronous** — the model needs the memories before it can answer, so there is no way to move it off the critical path. **Extraction is fully asynchronous** — the turn writes a queue row and finishes, and the worker does the model work seconds later. So the per-turn cost of memory is essentially one embedding call plus one scoped query, and nothing else.
+
+Ways to reduce even that — skipping recall entirely when a user has no stored memories, skipping the embedding for trivial messages, or overlapping it with agent construction — are written up in [ROADMAP.md](ROADMAP.md).
+
+### The same turn, in detail
+
 ```mermaid
 sequenceDiagram
     autonumber
