@@ -29,7 +29,8 @@ docs/
   agent-memory/
     README.md                 # start here: what it is, the 60-second model, where to look next
     ARCHITECTURE.md           # how it works: diagrams, data model, config & failure tables
-    DECISIONS.md              # why it is built this way: 15 decisions, alternatives, evidence
+    DECISIONS.md              # why it is built this way: 17 decisions, alternatives, evidence
+    ROADMAP.md                # handover: what was deliberately deferred, how to build it, the traps
     DEVELOPING.md             # how to work on it: setup, tests, common changes, pitfalls
     OPERATIONS.md             # how to run it: enabling, config, log lines, troubleshooting
     CODE_WALKTHROUGH.md       # optional depth: every file and function, with code

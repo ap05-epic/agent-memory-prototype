@@ -27,6 +27,7 @@ If memory can't do its job — the embedder is down, the database is unreachable
 | Change or extend it without breaking things | [DEVELOPING.md](DEVELOPING.md) | 10 min |
 | Run it, configure it, call its API, or debug it | [OPERATIONS.md](OPERATIONS.md) | reference |
 | Know what a specific file or function does | [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) | reference |
+| Pick up where this left off | [ROADMAP.md](ROADMAP.md) | 10 min |
 
 Picking up work on this? Read this page, then ARCHITECTURE and DEVELOPING — about half an hour, and enough to be productive. Reach for DECISIONS the moment something looks arbitrary; it probably is not.
 
@@ -49,7 +50,9 @@ Everything below is built and verified. The feature is **not enabled for general
 | View, delete, forget and disable your own memories | Live-verified, with an audit row per mutation |
 | Audit trail and retention worker | Built; retention purges only when a window is configured |
 | Memory in the console UI | Works when a tenant is configured |
-| Consolidation into per-user summaries | **Designed, not built** — see the decision record |
+| Consolidation into per-user summaries | **Designed, not built** — see [ROADMAP.md](ROADMAP.md) |
+
+This was built during a ten-week internship. What shipped is complete and verified; what was deliberately left is written up in [ROADMAP.md](ROADMAP.md) with the reasoning, an implementation sketch and the traps for each item — so the next person starts from where this finished rather than from scratch.
 
 ## Explaining this to someone
 
