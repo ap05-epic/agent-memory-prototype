@@ -97,6 +97,8 @@ alembic current          # what revision is this database at
 alembic check            # does the database match the models
 ```
 
+All three need `AGENT_FACTORY_DATABASE_URL` in the environment — source the harness `.env` first, or they fail immediately with a message saying so.
+
 A new environment runs `upgrade head` and gets everything. A database that already has the tables adopts the baseline once with `alembic stamp head`, then uses `upgrade head` from then on. `create_all` remains only for local scratch databases and is documented as such.
 
 Because the dev database is shared with another application, Alembic is deliberately scoped to harness-owned tables. The `studio_*` tables, the SDK's `agent_sessions`/`agent_messages`, and one hand-applied index on `agent_runs` are all excluded on purpose — see `docs/MIGRATIONS.md` in the harness repo.

@@ -241,11 +241,11 @@ Three revisions: `5258f2433fcb` (full-schema baseline, with a `CREATE EXTENSION 
 | `test_agent_memory_roundtrip.py` | 3 | seed-and-recall ranking; two-user and two-tenant isolation; a supersede round trip |
 | `test_agent_memory_regressions.py` | 3 | structural guards: no default-tenant fallback, no memory in the adapter, workers imported and referenced, one enqueue call, identity checks present, routes are async |
 | `test_agent_memory_sessions.py` | 3 | installed factory is used; standalone fallback; a write travels through an injected factory |
-| `test_agent_memory_identity.py` | — | the `memory_identity_ok` truth table; run-context gating; the **off-by-default guard** across every non-test profile |
+| `test_agent_memory_identity.py` | 4 | the `memory_identity_ok` truth table; run-context gating; the **off-by-default guard** across every non-test profile |
 | `test_agent_memory_input_channel.py` | 4 | input-list ordering; resume-path guard; the adapter carries no memory parameter; the session filter drops memory items |
 | `test_agent_memory_outbox.py` | 6 | enqueue; claim commits before processing; success deletes; retry and backoff; the failure cap; fallback on enqueue error |
 | `test_agent_memory_governance.py` | 7 | scope isolation; cross-scope delete protection; forget; opt-out; purge windows; audit rows contain no content; the list and forget routes |
-| `test_migrations.py` | 4 | alembic config loads; exactly one head; linear chain; memory tables in the baseline |
+| `test_migrations.py` | 5 | alembic config loads; exactly one head; linear chain; memory tables in the baseline |
 
 The off-by-default guard is the mechanism behind the claim that memory cannot be switched on accidentally: it reads every profile YAML under the real profile paths and fails the build if any of them sets the flag.
 
