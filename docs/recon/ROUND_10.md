@@ -43,6 +43,54 @@
 19. `ls migrations/versions/` and, for each, its `revision` and `down_revision`. The docs claim exactly three, chained baseline → outbox → audit.
 20. `python3 -m alembic check` — expect no new operations. (Read-only; it does not write.)
 
+---
+
+# Added after a technical review — three questions the docs cannot currently answer
+
+## Block F — where the data actually lives
+
+21. From the harness `.env` (mask the password): the database **host**, **port**, **database name**, and **user** in `AGENT_FACTORY_DATABASE_URL`. Also report whether `AGENT_FACTORY_SESSION_DATABASE_URL` is set and whether it differs.
+22. Read-only queries against that database, output verbatim:
+    - `SELECT version();`
+    - `SELECT current_database(), current_user;`
+    - `SELECT name, setting FROM pg_settings WHERE name IN ('server_version','max_connections','shared_buffers','TimeZone');`
+    - `SELECT extname, extversion FROM pg_extension;`
+23. What the memory feature actually occupies:
+    ```sql
+    SELECT relname,
+           pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+           n_live_tup AS approx_rows
+    FROM pg_stat_user_tables
+    WHERE relname LIKE 'agent_memory%'
+    ORDER BY relname;
+    ```
+    Also the same for the harness's own tables (`agent_%` excluding memory) so the relative footprint is visible.
+24. Is this server shared? `SELECT datname FROM pg_database ORDER BY 1;` and `SELECT schemaname, count(*) FROM pg_tables GROUP BY 1;` — report what else lives here.
+25. Azure provisioning facts, if reachable: is the `az` CLI available (`az --version`)? If yes, `az postgres flexible-server list -o table` and, for the server in question, `az postgres flexible-server show -n <name> -g <group>` — report subscription id, resource group, region, tier/SKU, storage size, and backup retention. **If `az` is unavailable or unauthenticated, say so plainly and stop** — do not guess. This is provisioning information owned by whoever created the server.
+
+## Block G — the baseline turn pipeline (what a message does *without* memory)
+
+The documentation describes memory's hooks but never the pipeline they hook into. Quote the real code so it can be drawn accurately.
+
+26. Trace one chat turn from HTTP entry to response, naming each hop with file and function: the FastAPI route that accepts a turn, what it calls, how `TurnService` prepares and persists the turn, and how control reaches `sdk_runner.stream_turn`. Quote the route handler and the `TurnService` method signatures (≤40 lines total).
+27. Inside `stream_turn`, list **in order** the significant steps for a turn with memory **disabled** — instruction assembly, agent build, session build, the `Runner.run_streamed` call, the event loop, and the terminal block. Quote just the anchor lines, not whole bodies (≤40 lines).
+28. Where do the harness's own persistence writes happen during a turn (thread, run, events, session messages) and are they awaited inline or deferred? Quote the call sites.
+29. Which of memory's touch points sit **before** the model call, and which sit **after** the response has streamed? State it plainly with line numbers.
+
+## Block H — measured latency, not estimated
+
+The claim under review is that memory adds too much time per turn. Measure it rather than reasoning about it.
+
+30. Does the runner emit timing instrumentation (`grep -rn "debug_timing\|\[timing" src/agent_factory/runtime/`)? If so, quote how it is enabled.
+31. **Measure recall.** Write a small standalone script (harness venv, `.env` sourced, memory env vars set) that, for a scope with existing memories, times these separately over 5 runs each and reports min/median/max in milliseconds:
+    - `_digit.embed(["a representative user message"])` — the embedding call
+    - `store.candidate_entries(...)` — the database fetch
+    - `semantic.select_for_recall(...)` — the ranking
+    - `recall.build_memory_block(...)` end to end
+32. **Measure the write path.** Same style: `store.smart_add_entry(...)` with a decider that returns ADD, timed end to end, and separately with `decide=None`, so the cost of the adjudication call is visible.
+33. **Measure a real turn both ways.** Launch on 8081 and time two identical turns with `curl -w "%{time_total}"`: one against a memory-enabled profile with full identity, one against the same profile with the tenant omitted (memory disabled, everything else equal). Three runs each; report all six numbers. Then subtract.
+34. Confirm what is genuinely off the critical path: quote the enqueue call and the worker loop, and state plainly whether the extraction model call happens during the turn or after it.
+
 ## Final lines (end with exactly these)
 
 ```
@@ -53,5 +101,12 @@ MERGE-STATE: <run_completed sites, enqueue sites, identity guards, default-tenan
 CONSOLE: <routes, env var, header forwarding, package manager — correct or corrections>
 CONFIG: <missing: … | invented: … | all correct>
 SCHEMA: <revisions + alembic check result>
+DATABASE: <host/db/user, server version, extensions, memory table sizes, shared or not>
+AZURE: <subscription/group/region/tier/backup, or "az unavailable">
+PIPELINE: <one line: the hop order for a turn without memory>
+LATENCY-RECALL: <median ms for embed / fetch / rank / total>
+LATENCY-WRITE: <median ms with and without the decider>
+LATENCY-TURN: <memory-on vs memory-off total, and the delta>
+ASYNC: <one line: what runs during the turn vs after it>
 DOC-RISK: <up to 3 lines: the claims that would most mislead a reader if left wrong>
 ```
