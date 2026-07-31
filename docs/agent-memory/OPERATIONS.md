@@ -87,6 +87,31 @@ Every mutating call writes one row to `agent_memory_audit` recording the action,
 
 > **Not yet enforced:** `MemoryPolicy` declares `max_entries_per_scope`, but nothing acts on it. Growth is currently bounded by the recall budget rather than by a hard cap. If you need a quota, that is where to add it.
 
+## Where the data lives
+
+Memory introduces no new infrastructure. It has four tables inside the database the harness already uses — an existing Azure Database for PostgreSQL flexible server, dev tier, PostgreSQL 15.18 with `pgvector` 0.8.0 and `pgcrypto` already installed. No new server, no new database, no new subscription, and nothing was provisioned for this feature.
+
+Measured on the dev database:
+
+| | Size | Rows |
+|---|---|---|
+| `agent_memory_entries` | 352 kB | 28 |
+| `agent_memory_audit` | 48 kB | 13 |
+| `agent_memory_outbox` | 48 kB | 0 |
+| `agent_memory_user_models` | 48 kB | 1 |
+| **all memory tables** | **≈ 500 kB** | |
+| the database as a whole | 161 MB | |
+| `agent_events` alone, for scale | 76 MB | 321,933 |
+
+So memory is roughly **0.3% of the database**, and the harness's own event log is about **150× larger than everything memory stores**. Storage is not where this feature costs anything.
+
+Two things worth knowing before you go looking:
+
+- **The server is shared.** Sixteen databases live on it, including `agent_factory`, `digit`, `digitcode`, `langfuse_uk8s`, `langsmith` and `research_cio`. This is why Alembic is scoped rather than left to manage everything it can see — see below.
+- **`memory_items` is not ours.** There is an unrelated table by that name in the same database. Every table this feature owns is prefixed `agent_memory_`.
+
+Provisioning facts — subscription, resource group, tier, backup retention — are not readable from the dev pod: `az` is installed and current, but `az postgres flexible-server list` returns nothing for the pod's identity, meaning the server sits outside what that identity can enumerate. Whoever provisioned the server has those details.
+
 ## Schema changes
 
 The schema is managed by Alembic, not by `create_all`.
