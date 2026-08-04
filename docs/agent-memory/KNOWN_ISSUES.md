@@ -16,7 +16,7 @@ A lead worth checking first: the harness logs `OPENAI_AGENTS_API is unset for an
 
 ## Resolved
 
-**Two pre-existing dev test failures (2026-07-27).** `test_turn_stream_custom_mcp_reaches_sdk_agent` and `test_turn_service_immediate_stream_does_not_block_on_event_journal` failed on dev for weeks and were documented as not-ours. The dev merge brought their fixes: the suite is now **420 passed, 0 failed**. From here any failure belongs to us.
+**Two pre-existing dev test failures (2026-07-27).** `test_turn_stream_custom_mcp_reaches_sdk_agent` and `test_turn_service_immediate_stream_does_not_block_on_event_journal` failed on dev for weeks and were documented as not-ours. The dev merge brought their fixes: the suite stood at **420 passed, 0 failed** at that point, and has since grown to **466 passed, 2 skipped** as the later workstreams added tests. From here any failure belongs to us.
 
 **Governance endpoints ran on the wrong event loop (2026-07-27).** The memory routes were written as synchronous `def` handlers bridging into async store calls. FastAPI runs sync handlers in a worker thread, so the bridge created a second event loop and connections borrowed from the app's pool failed with `got Future attached to a different loop`; it briefly disturbed the outbox worker sharing that pool too. Fixed by declaring every route `async def` and awaiting the store functions directly. The rule is now written into `agent-memory/DEVELOPING.md`: no `asyncio.run` or thread bridge anywhere in a request path.
 
