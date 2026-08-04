@@ -12,11 +12,13 @@ Each item carries a rough size: **small** is an afternoon, **medium** a few days
 
 The one substantive critique from technical review was latency. It is fair, and it has cheap answers.
 
-**Where the time actually goes today.** Before the model answers, memory embeds the user's message (one call to Azure OpenAI, typically 100–300 ms), fetches candidates from Postgres (5–20 ms) and ranks them in Python (1–5 ms). Extraction — the automatic learning — is already fully asynchronous: the turn writes one queue row and finishes, and a background worker does the model work afterwards. So the whole per-turn cost is essentially *one embedding call*.
+**Where the time actually goes today — now measured, not estimated.** Timed directly, recall is 761 ms: a 412 ms embedding call, a 301 ms database fetch and 0.6 ms of ranking. Timed inside a live turn it looks like **4.7 seconds** instead, and that discrepancy is not yet explained — see the measured-cost table in [ARCHITECTURE.md](ARCHITECTURE.md#3-anatomy-of-one-turn). Extraction is already fully asynchronous and costs the turn nothing measurable.
+
+**Take the larger number seriously when you plan.** Everything below was originally sized against a few hundred milliseconds. If the in-turn figure is the real one, these items are worth several seconds a turn rather than a few hundred milliseconds, and item 1.1 moves from a nice tidy-up to the single highest-value change in this document.
 
 ### 1.1 Skip recall entirely when the user has no memories — **small**
 
-**Why:** today we pay for the embedding call and *then* discover there is nothing to recall. At rollout most users have zero stored memories, so most turns pay ~250 ms for nothing.
+**Why:** today we pay for the embedding call and *then* discover there is nothing to recall. At rollout most users have zero stored memories, so most turns pay the **full recall cost — measured between 761 ms and 4.7 s — to retrieve nothing at all.**
 
 **How:** before embedding, run one indexed count over the scope (`profile_id, user_id, tenant_id`, `discarded_at IS NULL`). Zero rows means return `(None, 0)` immediately. That is roughly 2 ms instead of 250 ms. Cache the answer per scope in-process with a short TTL if the count query itself ever shows up in profiling — but measure before adding a cache, because a wrong cache here means a user's first memory does not appear until it expires.
 
