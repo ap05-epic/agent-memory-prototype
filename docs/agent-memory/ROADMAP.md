@@ -1,10 +1,42 @@
 # Roadmap and Handover
 
-This feature was built during a ten-week summer internship. What shipped is complete and verified — but ten weeks is ten weeks, and a number of good ideas were deliberately left on the table rather than half-built. This document is the list, written so that whoever picks it up next does not have to reconstruct the reasoning first.
+This feature was built during a ten-week summer internship. What shipped is complete and verified — but ten weeks is ten weeks, and a number of good ideas were deliberately left on the table rather than half-built. This document is the list, written so that whoever picks it up next does not have to reconstruct the reasoning first. **Tier 0 comes first deliberately** — it is not deferred scope like the rest, it is the direction the base layer was built to serve.
 
 **Nothing here is a known defect.** Everything that shipped works and is tested; see [README.md](README.md) for the verified capability list and [KNOWN_ISSUES](KNOWN_ISSUES.md) for the small number of genuinely open items. What follows is scope that was consciously deferred, each with why it matters, roughly how to build it, and what to watch out for.
 
 Each item carries a rough size: **small** is an afternoon, **medium** a few days, **large** a sprint or a design conversation.
+
+---
+
+## Tier 0 — The direction this was built for
+
+Everything below Tier 0 is maintenance and refinement of what exists. **This section is the reason the base layer exists at all** — see "Why this exists" in [README.md](README.md). It is written here as three buildable steps rather than a vision statement, because the next person needs the second one, not the first.
+
+### 0.1 Capture workflows, not just facts — **medium**
+
+**Why:** extraction today looks for durable facts *about a person*. Workflows are a different class of thing: the sequence someone always asks for, the format they always want back, the checks they always request. That is what actually differentiates one person's use of a generic agent from another's, and it is the raw material for both 0.2 and 0.3.
+
+**How:** the pipeline already exists — extend the extraction prompt to emit a second class of entry tagged `category="workflow"`, reusing the same write gate, the same scoping and the same storage. **Do not act on them at first.** Let them accumulate for a few weeks and read what lands, because the failure mode here is confidently capturing a "workflow" that was a one-off.
+
+**Watch out for:** value is in precision, not volume. A wrong fact is context noise the model can ignore; a wrong workflow changes what the agent *does*. Hold these to a much higher bar than ordinary memories, and keep them out of the recall block until 0.2 gives them a proper home.
+
+### 0.2 Compose a per-user skill layer over a generic agent — **large**
+
+**Why:** this is the payoff of 0.1 and the thing that makes a single shared agent file fit many people's work without anyone forking it. One generic agent, adapted per person, still centrally maintained.
+
+**How:** at agent-build time, take the *confirmed* workflow entries for the scope and compose them into an overlay applied alongside the profile's own instructions. The build seam already exists — recall hooks in at exactly this point (section 3 of [ARCHITECTURE.md](ARCHITECTURE.md)), so the plumbing is a sibling of what is there, not new machinery.
+
+**Watch out for — and this is the important one:** a skill layer lands in the **instruction channel**, which memory deliberately stays out of (decision 6 in [DECISIONS.md](DECISIONS.md)). That decision is not being reversed here; it is being handled. A recalled fact is context the model may weigh. A learned skill is meant to *direct behaviour*, which makes it authority — so it must be a **governed promotion, never an automatic one**. A workflow should require explicit confirmation — by the user, or by review — before it can influence instructions, and extraction must never write into the instruction path directly. Get that gate designed before writing any composition code.
+
+### 0.3 Aggregate real usage back into the generic agent files — **large**
+
+**Why:** the reason the whole system was built. Every three to six months the team reviews generic agent files; today that review runs on opinion. This turns it into a review with evidence: here is what people using this agent actually needed, ranked by how many of them needed it.
+
+**How:** an offline job, one profile at a time. Every entry already carries an embedding, so this is a query rather than a pipeline — pull live entries for the profile across users, cluster them, rank each cluster by **how many distinct users it spans** (not how many rows it holds, or one heavy user dominates), and have a model summarise each cluster into a candidate change to the agent file. The output is a **review document for a human**, not an automatic edit to a profile.
+
+**Watch out for:** governance comes before the query, not after it. Reading across users is precisely what runtime scoping forbids, so this needs its own authorisation path, aggregate-only output, and a **minimum distinct-user count per cluster** before anything surfaces — so no cluster can ever be traceable to one person. No individual's text should appear in the report at all; the model should be summarising a cluster, not quoting it. Agree that shape with whoever owns data governance before building it, because retrofitting it is much harder than starting with it.
+
+**A note on sequencing:** 0.3 is the valuable one, but it is only as good as what 0.1 collects. Building 0.3 against today's entries would work and would tell you something — it just tells you about people's preferences rather than their workflows.
 
 ---
 
@@ -136,9 +168,17 @@ I would build this **first** if I came back to the project, because everything i
 
 ## If you only do three things
 
+These keep the system healthy. They are not the same as the things that make it *valuable* — for that, see Tier 0.
+
 1. **Skip recall when the scope is empty** (1.1) — removes the per-turn cost for most users, an afternoon's work.
 2. **Build the recall-quality harness** (above) — makes every other tuning change measurable instead of debatable.
 3. **Decide the retention window** (2.4) — the engineering is one environment variable; the decision is the actual work, and until it is made, "deleted" data is not deleted.
+
+## If you are deciding where this goes next
+
+Tier 0 is the answer, and **0.1 is the cheapest first move** — extending extraction to capture workflows alongside facts is a prompt change and a category, and it starts collecting the raw material that 0.2 and 0.3 both need. Everything accumulated from the day it ships is data those steps can use; every week it is not shipped is data nobody can recover later.
+
+The one thing to settle before writing code is the governance shape of 0.2 and 0.3 — how a learned workflow gets promoted into instructions, and who authorises reading across users for the aggregate review. Both are conversations, not implementations, and both are much harder to retrofit than to start with.
 
 ## Traps worth knowing before you change anything
 

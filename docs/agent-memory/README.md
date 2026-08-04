@@ -6,6 +6,26 @@ Persistent, per-user memory for DIGIT agents. An agent with memory enabled remem
 
 ---
 
+## Why this exists
+
+People not having to repeat themselves is a real benefit, but it is not why this was built.
+
+This is the **base layer** for something larger. An agent that can durably record what a specific person needs is the prerequisite for an agent that adapts to them — and, further out, for generic agents that get measurably better for everyone as more people use them.
+
+Three layers. Only the first is built.
+
+**1 — Durable facts about a user.** *Shipped.* Preferences, corrections, working context, scoped per agent × user × tenant, governed and auditable. This is what the rest of this document describes.
+
+**2 — Learned workflows, as a skill layer over a generic agent.** *Next.* The same capture path that records *"prefers concise updates"* can record how someone actually works: the shape of output they need, the steps they always ask for, the checks they always want run. Those compose into a per-user layer applied on top of a **generic** agent file — so one shared agent fits many people's very different work without anyone forking it.
+
+**3 — Feeding real usage back into the generic agents.** *The payoff.* On a review cycle — every three to six months — pull what has accumulated across everyone using a given agent, find the patterns that recur across many people, and fold the common ones back into the core agent file. Every entry is already stored with an embedding, so finding those patterns is a clustering query plus a model reading the clusters, not a new pipeline.
+
+**Step 3 is the point.** It turns the periodic agent-file review from an exercise in opinion into one with evidence behind it, and it means a generic agent improves from how it is actually used rather than from guesses about how it might be.
+
+**None of it is possible without this layer.** You cannot analyse what people need from an agent if nothing ever recorded it. That is why the storage is scoped, governed and auditable from the first commit rather than bolted on once someone asks for the analysis.
+
+> **One boundary, stated up front.** Step 3 reads across users, and the runtime scoping deliberately makes that impossible — no user ever sees another's memories, and that guarantee does not change. The aggregate analysis is a separate, offline, separately authorised job whose output is *patterns*, never any individual's data. Keeping those two things apart is a governance requirement, not an implementation detail. How to build it that way is in [ROADMAP.md](ROADMAP.md).
+
 ## The 60-second model
 
 A memory is one short fact about one user, stored in the harness's existing Postgres and keyed by **(agent, user, tenant)**. Two things create memories, and one thing uses them:
