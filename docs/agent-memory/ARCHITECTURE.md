@@ -229,6 +229,12 @@ flowchart LR
     J -->|no| ADD
 ```
 
+**Read the score as "how much does this look like something already stored?" — not "how good is this fact?"** That is why the *low* end adds. A score below 0.30 means the new fact resembles nothing on file, which makes it new information and exactly what you want to keep. Dropping it would mean the system could only ever learn things similar to what it already knew — and since a new user's scope is empty and every score is near zero, nothing would ever be saved at all.
+
+Note also that the low branch has two ways in: the condition is `score ≥ 0.30` **and** a decider being available. No decider — model unreachable, timeout, exception — also lands on add.
+
+> **This runs opposite to the 0.35 floor in section 5, and the two are easy to confuse.** They answer different questions. The write gate asks *"is this new?"*, so dissimilar means new and the fact is kept. Recall asks *"is this relevant to what was just said?"*, so dissimilar means irrelevant and the memory is left out. Same-looking numbers, opposite jobs.
+
 The model sees the top five candidates as an integer-indexed list and returns an index, which is range-validated — it cannot invent a target. The `observed_at` guard is enforced in code, not by the model: an older fact never replaces a newer one.
 
 **Anything that goes wrong lands on `add`.** No embedding, a malformed verdict, a model timeout, an exception mid-gate — all of them fall through to a plain add rather than risking a wrong supersede. An extra row on an append-only table is noise; a wrongly retired fact is damage.
