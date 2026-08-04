@@ -75,14 +75,42 @@ flowchart LR
     E --> F["build instructions,<br/>agent and session"]
     F --> G["Runner.run_streamed"]
     G --> H["stream events<br/>back to the caller"]
-    H --> I["terminal block:<br/>audit, run.completed"]
+    H --> I["terminal block:<br/>governance audit"]
+    I --> J["run.completed"]
 ```
 
 `TurnService` validates the caller and writes the thread and run records inline before streaming starts; `stream_turn` assembles instructions, builds the agent and the session, calls the model, relays events as they arrive, and finishes in a terminal block that emits the governance audit and `run.completed`. **With memory disabled, that is the entire story** — no memory code loads, and the turn is byte-for-byte what it was before this feature existed.
 
-### Where memory attaches
+### The same pipeline with memory enabled
 
-Memory does not replace any of that. It attaches at four points inside `stream_turn`, plus one thing that happens entirely outside the turn:
+Identical diagram, two nodes added — deliberately drawn the same way so you can hold the two against each other:
+
+```mermaid
+flowchart LR
+    A[console or API client] --> B["POST /api/v1/turns/stream"]
+    B --> C["TurnService<br/>start_sdk_turn"]
+    C --> D["prepare and persist<br/>thread, run, first events"]
+    D --> E["SdkRunnerAdapter<br/>stream_turn"]
+    E --> M1["identity and opt-out<br/>gates, then recall"]
+    M1 --> F["build instructions,<br/>agent and session"]
+    F --> G["Runner.run_streamed"]
+    G --> H["stream events<br/>back to the caller"]
+    H --> I["terminal block:<br/>governance audit"]
+    I --> M2["enqueue<br/>outbox row"]
+    M2 --> J["run.completed"]
+    M2 -.-> W["background worker,<br/>after the turn:<br/>extract and store"]
+    style M1 fill:#ede3f6,stroke:#7b4397,color:#2a1a33
+    style M2 fill:#ede3f6,stroke:#7b4397,color:#2a1a33
+    style W fill:#f6efe3,stroke:#977943,color:#332a1a
+```
+
+**That is the entire footprint: two nodes on the path, and one worker hanging off it.** `M1` embeds the message, fetches and ranks within the scope, and emits the `🧠 Recalled N memories` status before the agent is built — it has to be there, because the memory block goes into the input list handed to `Runner.run_streamed`. `M2` writes a single queue row. The dotted line is the only part that isn't in the turn at all: the worker picks that row up afterwards and does the extraction model call once the user already has their answer.
+
+Everything else in the diagram is unchanged, and if the agent calls `save_memory` mid-turn that happens inside `G` like any other tool call.
+
+### Where memory attaches, point by point
+
+Memory attaches at four points inside `stream_turn`, plus one thing that happens entirely outside the turn:
 
 | | Where | What happens | On the critical path? |
 |---|---|---|---|
