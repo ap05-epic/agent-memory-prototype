@@ -1,5 +1,7 @@
 # Known Issues
 
+Issues surfaced while building agent memory. **Most of these are harness-wide rather than memory-specific** — they are recorded here because this is where they were found and measured, not because memory caused them. Each says which it is.
+
 ## Open
 
 **1. One unexplained SDK session transient.** During the outbox work, a single turn failed with `InterfaceError: connection is closed` on the SDK's `agent_sessions` table. It never reproduced across repeated runs. Most likely cause: the harness's own `Database` sets `pool_pre_ping=True`, while the SDK's `SQLAlchemySession.from_url` engine does not, so a dropped pooled connection surfaces exactly this way. SDK-side and harness-wide rather than memory-specific. Recorded rather than fixed, because we could not reproduce it.

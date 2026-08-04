@@ -2,7 +2,7 @@
 
 This feature was built during a ten-week summer internship. What shipped is complete and verified — but ten weeks is ten weeks, and a number of good ideas were deliberately left on the table rather than half-built. This document is the list, written so that whoever picks it up next does not have to reconstruct the reasoning first.
 
-**Nothing here is a known defect.** Everything that shipped works and is tested; see [README.md](README.md) for the verified capability list and [KNOWN_ISSUES](../KNOWN_ISSUES.md) for the small number of genuinely open items. What follows is scope that was consciously deferred, each with why it matters, roughly how to build it, and what to watch out for.
+**Nothing here is a known defect.** Everything that shipped works and is tested; see [README.md](README.md) for the verified capability list and [KNOWN_ISSUES](KNOWN_ISSUES.md) for the small number of genuinely open items. What follows is scope that was consciously deferred, each with why it matters, roughly how to build it, and what to watch out for.
 
 Each item carries a rough size: **small** is an afternoon, **medium** a few days, **large** a sprint or a design conversation.
 
@@ -20,7 +20,7 @@ The one substantive critique from technical review was latency. It is fair, and 
 
 **Why:** today we pay for the embedding call and *then* discover there is nothing to recall. At rollout most users have zero stored memories, so most turns pay the **full recall cost — measured between 761 ms and 4.7 s — to retrieve nothing at all.**
 
-**How:** before embedding, run one indexed count over the scope (`profile_id, user_id, tenant_id`, `discarded_at IS NULL`). Zero rows means return `(None, 0)` immediately. That is roughly 2 ms instead of 250 ms. Cache the answer per scope in-process with a short TTL if the count query itself ever shows up in profiling — but measure before adding a cache, because a wrong cache here means a user's first memory does not appear until it expires.
+**How:** before embedding, run one indexed count over the scope (`profile_id, user_id, tenant_id`, `discarded_at IS NULL`). Zero rows means return `(None, 0)` immediately. That is roughly 2 ms instead of the full recall cost — between 761 ms and 4.7 s, depending on which measurement holds. Cache the answer per scope in-process with a short TTL if the count query itself ever shows up in profiling — but measure before adding a cache, because a wrong cache here means a user's first memory does not appear until it expires.
 
 **Watch out for:** the count must use the same scope filter as recall, or you will skip recall for users who *do* have memories.
 
@@ -36,7 +36,7 @@ The one substantive critique from technical review was latency. It is fair, and 
 
 **Why:** the embedding currently happens sequentially, before the agent and session are constructed. Those steps do real work and do not depend on the memory block.
 
-**How:** start the embedding as a task, build the agent and session, then await it just before assembling the input list. If the setup takes 100 ms, the effective cost of recall drops by 100 ms for free.
+**How:** start the embedding as a task, build the agent and session, then await it just before assembling the input list. Setup was measured at about 1.6 s on the dev pod, so overlapping hides that much of recall for free.
 
 **Watch out for:** an un-awaited task that throws becomes an unhandled exception. Wrap it so a failed embedding still degrades to the recency rung rather than surfacing.
 

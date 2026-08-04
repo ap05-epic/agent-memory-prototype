@@ -147,7 +147,7 @@ Two measurements exist and they **disagree**. Both are here, because the gap bet
 
 That interval also contains setup that is not memory — about **1.6 s** of it, measured on a turn with memory switched off — so recall in-server looks like roughly 3–9 seconds against 761 ms measured directly. **The discrepancy is unexplained.** The four turns were minutes apart on an idle pod sharing an Azure OpenAI resource, so connection re-establishment and endpoint variability are the obvious suspects, but nothing here proves it. If this number matters to you, that is the first thing to measure properly: drive turns back to back and see whether the in-server figure converges on 761 ms.
 
-**For scale: the whole turn takes about 40 seconds,** and roughly 37 of them are the harness stalling — measured with memory disabled entirely, so none of it is ours (see [KNOWN_ISSUES](../KNOWN_ISSUES.md)). Memory is currently something like a tenth of turn latency and is not the thing to fix first.
+**For scale: the whole turn takes about 40 seconds,** and roughly 37 of them are the harness stalling — measured with memory disabled entirely, so none of it is ours (see [KNOWN_ISSUES](KNOWN_ISSUES.md)). Memory is currently something like a tenth of turn latency and is not the thing to fix first.
 
 That framing has a shelf life. **If the 37-second stall is ever fixed, recall becomes the largest remaining cost in a turn**, and Tier 1 of the [ROADMAP](ROADMAP.md) stops being optional. The cheapest item there — skipping recall entirely for users with no stored memories — removes this cost completely for most people, whichever of the two numbers is right.
 

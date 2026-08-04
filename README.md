@@ -49,7 +49,7 @@ docs/
   recon/RECONCILIATION_NOTES.md # transfer repo == deployed pod state (single authoring base)
   # ── Operational / build history ───────────────────────────────
   DEMO_RUNBOOK.md             # operational demo checklist (launch commands, fallbacks)
-  KNOWN_ISSUES.md             # open issues + resolved history (event-loop bug, SDK transient, dev failures)
+  agent-memory/KNOWN_ISSUES.md # open issues + resolved history (ships with the doc set)
   INDICATORS.md               # the recall-indicator design + implementation
   IMPLEMENTATION_BRIEF.md     # the build brief handed to the implementation agent (historical)
   DESIGN_DRAFT.md             # the original pre-build design (historical)
