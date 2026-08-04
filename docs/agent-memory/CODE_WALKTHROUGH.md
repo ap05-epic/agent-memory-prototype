@@ -4,10 +4,10 @@ The engineering companion to [ARCHITECTURE.md](ARCHITECTURE.md). That document e
 
 > **A note on the "W" numbers.** Tags like *(W4)* refer to the workstreams this feature was built in — W3 moved recall out of the instruction channel, W4 added the outbox, W2 added the governance layer, and so on. They are useful when reading commit history and can be ignored otherwise.
 
-**Where the code lives.** The package is `src/agent_factory/memory/` on the harness (branch `feature/agentmemory-v3`). This repository mirrors it at `memory/` for authoring. Two caveats while reading:
+**Where the code lives.** The package is `src/agent_factory/memory/` on the harness (branch `feature/agent-memory`). This repository mirrors it at `memory/` for authoring. Two caveats while reading:
 
 - The mirror lags the harness: `session_filter.py`, `outbox.py`, `retention.py` and the governance functions in `store.py` exist on the harness only, pending the next reconciliation.
-- **Everything described here is committed and pushed on `feature/agentmemory-v3`.** The frozen review snapshot `feature/agentmemory-mc1` contains none of §7–§10 — it stops at the identity work.
+- **Everything described here is committed and pushed on `feature/agent-memory`**, which is the only branch this feature has. Earlier development branches are preserved as `archive/*` tags; §7–§10 exist only on the current branch, since the archived snapshot stops at the identity work.
 
 ---
 

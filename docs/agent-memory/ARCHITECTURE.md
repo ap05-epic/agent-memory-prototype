@@ -1,6 +1,6 @@
 # Agent Memory — Architecture Reference
 
-**The definitive description of the system as it stands today**, on branch `feature/agentmemory-v3`. Diagrams render natively in GitHub and GitLab. If you read one document about this feature, read this one.
+**The definitive description of the system as it stands today**, on branch `feature/agent-memory`. Diagrams render natively in GitHub and GitLab. If you read one document about this feature, read this one.
 
 - Audience: anyone on the DIGIT AI Engineering team.
 - Companion docs in this folder: [README.md](README.md) (orientation) · [DEVELOPING.md](DEVELOPING.md) (how to work on it) · [OPERATIONS.md](OPERATIONS.md) (running and debugging) · [CODE_WALKTHROUGH.md](CODE_WALKTHROUGH.md) (file-by-file detail).
@@ -437,7 +437,7 @@ The chain so far:
 |---|---|
 | Core memory (recall, tool, extraction) | Built, demoed, live-verified |
 | Semantic retrieval + supersede (pgvector) | Built, live-verified, thresholds calibrated |
-| Re-base onto current dev | Done — branch `feature/agentmemory-v3` |
+| Re-base onto current dev | Done — branch `feature/agent-memory` |
 | Alembic migrations, verified drift-free | Done |
 | Harness-managed DB lifecycle | Done — no private engine in-app |
 | Identity and tenant hardening | Done — fail-closed |
@@ -450,7 +450,7 @@ The chain so far:
 
 **The one thing not proven end to end.** Every row above except the console was verified by driving the live system. The console row was verified by reading and testing the code — the six proxy routes exist, `DIGIT_CONSOLE_TENANT_ID` is read server-side only, the tenant is attached to the turn body when set and omitted when not, and the harness needed no change because it already read `x-tenant-id`. What has *not* happened is a person opening the console in a browser and watching a memory get recalled. The attempt was blocked by a corporate proxy intercepting local calls to the console's own API routes; rather than fake the receipt, it is recorded as outstanding. Expect it to work, verify before relying on it.
 
-**Branch topology.** `feature/agentmemory-v3` is the working branch and carries everything. `feature/agentmemory-mc1` is a frozen snapshot of the foundation work — the first six rows of that table — captured for review; nothing new lands on it, so work on the main branch cannot disturb it.
+**Branch topology.** There is one branch: **`feature/agent-memory`**, which carries everything in the table above. During development the work was split across two earlier branches — a prototype and a frozen review snapshot of the foundation half — and both are preserved as tags (`archive/agentmemory` and `archive/agentmemory-mc1`) rather than kept as branches, so the history is recoverable without cluttering the branch list. Restore either with `git branch <name> archive/<tag>`.
 
 **What "deferred" means for consolidation.** Recall injects at most 20 entries per turn regardless of how many exist, so the system does not degrade as memories accumulate; what it lacks is a way to *compress* many small facts into a durable summary. The table is reserved and the design is written down. It becomes worth building when a single user's scope routinely exceeds what the injection budget can represent.
 
