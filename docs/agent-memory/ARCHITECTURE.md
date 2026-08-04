@@ -120,7 +120,7 @@ Memory attaches at four points inside `stream_turn`, plus one thing that happens
 | 4 | The terminal block | One row inserted into the outbox queue | Yes, but tiny — a single insert |
 | 5 | **After the turn**, in a background worker | The actual extraction: model call, gate, write | **No** — the user has already got their answer |
 
-The important distinction is between rows 1 and 5. **Recall must be synchronous** — the model needs the memories before it can answer, so there is no way to move it off the critical path. **Extraction is fully asynchronous** — the turn writes a queue row and finishes, and the worker does the model work seconds later. So the per-turn cost of memory is essentially one embedding call plus one scoped query, and nothing else.
+The important distinction is between rows 1 and 5. **Recall must be synchronous** — the model needs the memories before it can answer, so there is no way to move it off the critical path. **Extraction is fully asynchronous** — the turn writes a queue row and finishes, and the worker does the model work seconds later. So the work memory adds to a turn is one embedding call plus one scoped query. What that actually costs in wall-clock is measured below, and it is less settled than the shape suggests.
 
 ### What it actually costs, measured
 
