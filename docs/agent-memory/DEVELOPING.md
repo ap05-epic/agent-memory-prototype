@@ -35,7 +35,7 @@ export AGENT_FACTORY_MEMORY_PGVECTOR=1
 export AGENT_FACTORY_MEMORY_EMBED_MODEL=text-embedding-3-large
 export AGENT_FACTORY_MEMORY_EMBED_DIM=1536
 export AGENT_FACTORY_MEMORY_MODEL=gpt-5.4-mini
-PYTHONPATH=src PORT=8081 <launch uvicorn> > /tmp/memory.log 2>&1
+PYTHONPATH=src python3 -m agent_factory.cli serve --host 127.0.0.1 --port 8081 > /tmp/memory.log 2>&1
 ```
 
 **Before trusting anything you see, confirm two lines in that log:**

@@ -4,6 +4,10 @@
 
 **1. One unexplained SDK session transient.** During the outbox work, a single turn failed with `InterfaceError: connection is closed` on the SDK's `agent_sessions` table. It never reproduced across repeated runs. Most likely cause: the harness's own `Database` sets `pool_pre_ping=True`, while the SDK's `SQLAlchemySession.from_url` engine does not, so a dropped pooled connection surfaces exactly this way. SDK-side and harness-wide rather than memory-specific. Recorded rather than fixed, because we could not reproduce it.
 
+**3. A turn takes ~40 seconds, and almost none of it is work.** Measured on the dev pod while timing memory: a one-sentence reply had its last `text.delta` at 1.5 s, then the SDK's event stream sat open for a further **26 s** before yielding `response.completed`, and the harness took another **11 s** to reach `run.completed`. Confirmed harness-wide, not memory: the same turn with memory fully disabled stalled 26.5 s and 11.2 s — marginally *worse* than the memory-enabled run. So ~96% of a turn on this pod is waiting, with no memory code loaded.
+
+A lead worth checking first: the harness logs `OPENAI_AGENTS_API is unset for an Azure OpenAI deployment; defaulting to 'responses'` at startup, and `config.py` already warns that Azure endpoints may not fully support the Responses API — the same tension recorded under cause 4 below. A stream that produces all its content and then fails to terminate for 26 s is exactly what a half-supported streaming implementation looks like. Cheap test: launch with `OPENAI_AGENTS_API=chat_completions` and see whether the stall survives. Unverified, and out of scope for the memory work, but the measurement is solid and the team should have it.
+
 **2. Undocumented database constraint.** The shared dev database carries a hand-applied unique index `ix_agent_runs_one_active_per_thread` on `agent_runs` that no code creates. Left untouched, excluded from migration management, definition recorded in `MIGRATIONS.md`, and escalated to the team for a decision.
 
 ---
