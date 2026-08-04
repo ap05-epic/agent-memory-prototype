@@ -45,7 +45,7 @@ Memory needs a tenant, and the console has no tenant claim to read, so it takes 
 DIGIT_CONSOLE_TENANT_ID=t-demo    # in the console's environment
 ```
 
-With it set, the console includes `tenant_id` in the `user` object on every turn and memory behaves in the browser exactly as it does over curl. With it unset, the console sends no tenant, memory stays off, and nothing else changes — the fail-closed posture is preserved either way.
+With it set, the console includes `tenant_id` in the `user` object on every turn, which is everything the harness needs — it already reads that value. This path is verified in code but has **not** been watched working in a browser (see section 13 of [ARCHITECTURE.md](ARCHITECTURE.md)), so confirm it yourself the first time you enable it. With it unset, the console sends no tenant, memory stays off, and nothing else changes — the fail-closed posture is preserved either way.
 
 The console also proxies the memory endpoints under `/api/harness/memory/...`, forwarding the caller's `x-user-id` and `x-tenant-id`. There is no memory UI yet; the routes exist so one can be built.
 

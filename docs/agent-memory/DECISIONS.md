@@ -54,7 +54,7 @@ Candidates are presented as a numbered list and the model replies with a number,
 
 **Alternative:** fall back to a `"default"` tenant when the caller does not send one — which is what the prototype did.
 
-Filing a real person's data under a shared placeholder is the worst failure this system could have, because it is invisible and it mixes users. Memory now requires a validated user *and* tenant, and switches itself off for the turn otherwise. The visible cost is that console traffic has no memory until the console sends a tenant. That cost is worth paying, and it is temporary.
+Filing a real person's data under a shared placeholder is the worst failure this system could have, because it is invisible and it mixes users. Memory now requires a validated user *and* tenant, and switches itself off for the turn otherwise. The visible cost was that console traffic had no memory at all until the console could send a tenant — which decision 16 then solved by configuration. The cost was worth paying, and it was temporary.
 
 ### 10. Post-turn extraction is durable, via an outbox
 

@@ -365,7 +365,7 @@ flowchart LR
 
 Fail-closed by construction: the same predicate gates recall, extraction, and the tool (the tool is gated implicitly — it is enabled through the same run-context flag, so no tool-side change was needed). Harness paths no longer fall back to a `"default"` tenant sentinel.
 
-> **Current consequence, by design:** the console does not send a tenant yet, so console-driven memory is inert on this branch until the tenant plumbing lands with the governed-API workstream. That satisfies the review's condition that memory stay demo-only until governance ships.
+> **What this means for the console:** the console had no tenant to send, which made console-driven memory inert. That gap is now closed in code — the console reads a configured tenant server-side and includes it on every turn — so memory is off there only when `DIGIT_CONSOLE_TENANT_ID` is left unset, which is the default. See section 13 for what has and has not been verified end to end.
 
 ## 9. Schema deployment
 
@@ -439,8 +439,10 @@ The chain so far:
 | Recall out of the instruction channel | Done |
 | Durable extraction (outbox + worker) | Done |
 | Governed APIs, audit trail, retention | Done |
-| Console tenant plumbing | Done — the console sends a configured tenant, so memory works in the UI |
+| Console tenant plumbing | Code complete and verified by inspection — **not yet proven in a browser**, see below |
 | Consolidation into per-user profiles | Designed, deferred |
+
+**The one thing not proven end to end.** Every row above except the console was verified by driving the live system. The console row was verified by reading and testing the code — the six proxy routes exist, `DIGIT_CONSOLE_TENANT_ID` is read server-side only, the tenant is attached to the turn body when set and omitted when not, and the harness needed no change because it already read `x-tenant-id`. What has *not* happened is a person opening the console in a browser and watching a memory get recalled. The attempt was blocked by a corporate proxy intercepting local calls to the console's own API routes; rather than fake the receipt, it is recorded as outstanding. Expect it to work, verify before relying on it.
 
 **Branch topology.** `feature/agentmemory-v3` is the working branch and carries everything. `feature/agentmemory-mc1` is a frozen snapshot of the foundation work — the first six rows of that table — captured for review; nothing new lands on it, so work on the main branch cannot disturb it.
 

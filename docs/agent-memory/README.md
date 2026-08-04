@@ -33,7 +33,7 @@ Picking up work on this? Read this page, then ARCHITECTURE and DEVELOPING — ab
 
 ## What exists today
 
-Everything below is built and verified. The feature is **not enabled for general use** — that is a deliberate switch, not an unfinished edge.
+Everything below is built, and everything marked *live-verified* was proven by driving the running system rather than by reading the code. The one exception is called out in the table. The feature is **not enabled for general use** — that is a deliberate switch, not an unfinished edge.
 
 | Capability | State |
 |---|---|
@@ -49,7 +49,7 @@ Everything below is built and verified. The feature is **not enabled for general
 | Recall in the data channel, out of the instruction channel | Live-verified, with zero rows leaking into stored history |
 | View, delete, forget and disable your own memories | Live-verified, with an audit row per mutation |
 | Audit trail and retention worker | Built; retention purges only when a window is configured |
-| Memory in the console UI | Works when a tenant is configured |
+| Memory in the console UI | Code complete, verified by inspection — browser check still outstanding |
 | Consolidation into per-user summaries | **Designed, not built** — see [ROADMAP.md](ROADMAP.md) |
 
 **What it costs a turn** is measured rather than argued: recall is the only synchronous part, extraction happens entirely after the user has their answer, and both figures — including one discrepancy that is still unexplained — are in [ARCHITECTURE.md](ARCHITECTURE.md#3-anatomy-of-one-turn). Short version: on the dev pod memory is roughly a tenth of turn latency, and the other nine tenths is a harness stall that has nothing to do with this feature.
