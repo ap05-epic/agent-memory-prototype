@@ -94,6 +94,37 @@ Memory does not replace any of that. It attaches at four points inside `stream_t
 
 The important distinction is between rows 1 and 5. **Recall must be synchronous** — the model needs the memories before it can answer, so there is no way to move it off the critical path. **Extraction is fully asynchronous** — the turn writes a queue row and finishes, and the worker does the model work seconds later. So the per-turn cost of memory is essentially one embedding call plus one scoped query, and nothing else.
 
+### What it actually costs, measured
+
+Two measurements exist and they **disagree**. Both are here, because the gap between them is itself information.
+
+**The components,** timed directly in a standalone script, five back-to-back runs against a scope holding eight memories:
+
+| step | median |
+|---|---|
+| embed the incoming message | 412 ms |
+| fetch candidates from Postgres | 301 ms |
+| rank them in Python | 0.6 ms |
+| **recall, end to end** | **761 ms** |
+
+**Inside a live turn,** timed from the `run.started` event to the 🧠 indicator, four turns against a running server:
+
+| run | interval |
+|---|---|
+| 1 — first turn on a fresh server | 8.8 s |
+| 2 | 4.6 s |
+| 3 | 4.7 s |
+| 4 | 10.3 s |
+| **warm median** | **4.7 s** |
+
+That interval also contains setup that is not memory — about **1.6 s** of it, measured on a turn with memory switched off — so recall in-server looks like roughly 3–9 seconds against 761 ms measured directly. **The discrepancy is unexplained.** The four turns were minutes apart on an idle pod sharing an Azure OpenAI resource, so connection re-establishment and endpoint variability are the obvious suspects, but nothing here proves it. If this number matters to you, that is the first thing to measure properly: drive turns back to back and see whether the in-server figure converges on 761 ms.
+
+**For scale: the whole turn takes about 40 seconds,** and roughly 37 of them are the harness stalling — measured with memory disabled entirely, so none of it is ours (see [KNOWN_ISSUES](../KNOWN_ISSUES.md)). Memory is currently something like a tenth of turn latency and is not the thing to fix first.
+
+That framing has a shelf life. **If the 37-second stall is ever fixed, recall becomes the largest remaining cost in a turn**, and Tier 1 of the [ROADMAP](ROADMAP.md) stops being optional. The cheapest item there — skipping recall entirely for users with no stored memories — removes this cost completely for most people, whichever of the two numbers is right.
+
+**Extraction, by contrast, costs the turn nothing measurable.** The worker's model call was observed landing **0.4 s after** `run.completed` had already been sent to the caller.
+
 Ways to reduce even that — skipping recall entirely when a user has no stored memories, skipping the embedding for trivial messages, or overlapping it with agent construction — are written up in [ROADMAP.md](ROADMAP.md).
 
 ### The same turn, in detail
